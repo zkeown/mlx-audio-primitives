@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlx-audio-primitives"
+version = "0.1.0"
+description = "Foundational audio DSP primitives for Apple's MLX framework"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Zak Keown"}
+]
+keywords = ["mlx", "audio", "dsp", "stft", "mel", "spectrogram", "apple-silicon"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "mlx>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "librosa>=0.10.0",
+    "soundfile>=0.12.0",
+    "scipy>=1.10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/zakkeown/mlx-audio-primitives"
+Repository = "https://github.com/zakkeown/mlx-audio-primitives"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlx_audio_primitives*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

@@ -73,7 +73,7 @@ Repository = "https://github.com/zakkeown/mlx-audio-primitives"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mlx_audio_primitives*"]
+include = ["mlx_audio_primitives*", "benchmarks*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

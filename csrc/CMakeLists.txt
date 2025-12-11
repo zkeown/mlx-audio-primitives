@@ -70,10 +70,11 @@ endif()
 find_package(nanobind CONFIG REQUIRED)
 
 # Python bindings with nanobind
+# Note: STABLE_ABI is intentionally NOT used to ensure type caster compatibility
+# with MLX's shared NB_DOMAIN. STABLE_ABI limits cross-module type sharing.
 nanobind_add_module(
     _ext
     NB_STATIC
-    STABLE_ABI
     LTO
     NOMINSIZE
     NB_DOMAIN

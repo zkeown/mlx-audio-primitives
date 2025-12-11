@@ -130,14 +130,19 @@ _WINDOW_FUNCTIONS: dict[str, Callable[[int], mx.array]] = {
 # =============================================================================
 
 # Caching Strategy:
-# Window functions are cached using lru_cache with bytes representation.
-# This is efficient because:
-# 1. Windows are small (typically < 8KB for 2048-point windows)
-# 2. They are computed once and reused many times per audio file
-# 3. Bytes representation is hashable and memory-efficient for cache keys
+# Window functions use a two-tier cache:
+# 1. _get_window_cached: LRU cache storing bytes (hashable, for persistence)
+# 2. _mlx_window_cache: Dict storing MLX arrays (avoids CPU→GPU transfer on hit)
+#
+# The MLX cache is checked first to avoid the overhead of:
+# - bytes → np.frombuffer → mx.array conversion
+# - CPU→GPU data transfer on every cache hit
+
+# Secondary cache for MLX arrays (avoids CPU→GPU transfer on repeated access)
+_mlx_window_cache: dict[tuple[str, int, bool], mx.array] = {}
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=128)
 def _get_window_cached(
     window_name: str,
     n_fft: int,
@@ -247,9 +252,16 @@ def get_window(
             f"window must be str or mx.array, got {type(window).__name__}"
         )
 
-    # Get cached window data
+    # Check MLX cache first (avoids CPU→GPU transfer)
+    cache_key = (window.lower(), n_fft, fftbins)
+    if cache_key in _mlx_window_cache:
+        return _mlx_window_cache[cache_key]
+
+    # Get cached window data (bytes)
     window_bytes, length = _get_window_cached(window, n_fft, fftbins)
 
-    # Convert from bytes back to MLX array
+    # Convert from bytes to MLX array and cache
     w = np.frombuffer(window_bytes, dtype=np.float32)
-    return mx.array(w)
+    result = mx.array(w)
+    _mlx_window_cache[cache_key] = result
+    return result

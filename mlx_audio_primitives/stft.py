@@ -18,6 +18,66 @@ from .windows import get_window
 # Numerical constants
 _WINDOW_SUM_EPSILON = 1e-8  # Minimum window sum for numerical stability
 
+# Cache for padded windows to avoid repeated padding operations
+_padded_window_cache: dict[tuple, mx.array] = {}
+
+
+def _get_padded_window(
+    window: str | mx.array, win_length: int, n_fft: int
+) -> mx.array:
+    """Get window, padding to n_fft if needed, with caching."""
+    # Create cache key
+    if isinstance(window, str):
+        cache_key = (window, win_length, n_fft)
+    else:
+        # For array windows, use id (caller must ensure consistency)
+        cache_key = (id(window), win_length, n_fft)
+
+    if cache_key in _padded_window_cache:
+        return _padded_window_cache[cache_key]
+
+    # Get base window
+    win = get_window(window, win_length, fftbins=True)
+
+    # Pad if needed
+    if win_length < n_fft:
+        pad_left = (n_fft - win_length) // 2
+        pad_right = n_fft - win_length - pad_left
+        win = mx.pad(win, [(pad_left, pad_right)])
+
+    # Cache and return
+    _padded_window_cache[cache_key] = win
+    return win
+
+
+@lru_cache(maxsize=8)
+def _get_compiled_stft_fn(
+    n_fft: int, hop_length: int, center: bool, pad_mode: str
+):
+    """
+    Get a compiled STFT function for the given parameters.
+
+    Using mx.compile() enables graph-level optimizations including
+    kernel fusion and reduced dispatch overhead.
+    """
+
+    def _stft_core(y: mx.array, win: mx.array) -> mx.array:
+        # Center padding (if enabled)
+        if center:
+            pad_length = n_fft // 2
+            y = _pad_signal(y, pad_length, pad_mode)
+
+        # Frame the signal
+        frames = _frame_signal(y, n_fft, hop_length)
+
+        # Apply window and compute FFT in sequence
+        # (compiler may fuse these operations)
+        frames = frames * win
+        return mx.fft.rfft(frames, axis=-1)
+
+    # Compile the function for better performance
+    return mx.compile(_stft_core)
+
 
 def stft(
     y: mx.array,
@@ -93,27 +153,12 @@ def stft(
 
     batch_size, signal_length = y.shape
 
-    # Get window and pad to n_fft if needed
-    win = get_window(window, win_length, fftbins=True)
-    if win_length < n_fft:
-        # Center the window in the FFT frame
-        pad_left = (n_fft - win_length) // 2
-        pad_right = n_fft - win_length - pad_left
-        win = mx.pad(win, [(pad_left, pad_right)])
+    # Get window with caching (includes padding if needed)
+    win = _get_padded_window(window, win_length, n_fft)
 
-    # Center padding
-    if center:
-        pad_length = n_fft // 2
-        y = _pad_signal(y, pad_length, pad_mode)
-
-    # Frame the signal
-    frames = _frame_signal(y, n_fft, hop_length)  # (batch, n_frames, n_fft)
-
-    # Apply window
-    frames = frames * win  # Broadcasting: (batch, n_frames, n_fft) * (n_fft,)
-
-    # Compute FFT
-    stft_matrix = mx.fft.rfft(frames, axis=-1)  # (batch, n_frames, n_fft//2+1)
+    # Use compiled STFT implementation for better performance
+    stft_fn = _get_compiled_stft_fn(n_fft, hop_length, center, pad_mode)
+    stft_matrix = stft_fn(y, win)
 
     # Transpose to (batch, freq_bins, n_frames) to match librosa convention
     stft_matrix = mx.transpose(stft_matrix, (0, 2, 1))
@@ -190,13 +235,8 @@ def istft(
     if win_length is None:
         win_length = n_fft
 
-    # Get window and pad to n_fft if needed
-    win = get_window(window, win_length, fftbins=True)
-    if win_length < n_fft:
-        # Center the window in the FFT frame
-        pad_left = (n_fft - win_length) // 2
-        pad_right = n_fft - win_length - pad_left
-        win = mx.pad(win, [(pad_left, pad_right)])
+    # Get window with caching (includes padding if needed)
+    win = _get_padded_window(window, win_length, n_fft)
 
     # Transpose to (batch, n_frames, freq_bins) for irfft
     stft_matrix = mx.transpose(stft_matrix, (0, 2, 1))
@@ -424,23 +464,40 @@ def _frame_signal(y: mx.array, n_fft: int, hop_length: int) -> mx.array:
 
     n_frames = 1 + (signal_length - n_fft) // hop_length
 
-    # Vectorized frame construction using advanced indexing
-    # Create frame start indices: [0, hop_length, 2*hop_length, ...]
-    frame_starts = mx.arange(n_frames) * hop_length  # (n_frames,)
+    # Optimized frame construction using as_strided view when possible,
+    # falling back to gather-based approach
+    #
+    # Key insight: We can use mx.as_strided to create a view of the signal
+    # with overlapping frames, avoiding index computation and gather operations.
+    # This is significantly faster as it's just a metadata operation.
 
-    # Create sample offsets within each frame: [0, 1, 2, ..., n_fft-1]
-    sample_offsets = mx.arange(n_fft)  # (n_fft,)
+    # Check if we can use strided view (MLX >= 0.5 has as_strided)
+    if hasattr(mx, 'as_strided'):
+        # Use strided view for zero-copy framing
+        # For batched signals, we need to handle each batch
+        # y shape: (batch, signal_length) -> frames: (batch, n_frames, n_fft)
+        strides = y.strides
+        # New strides: (batch_stride, hop_length, 1) in elements
+        # as_strided expects strides in elements, not bytes
+        new_shape = (batch_size, n_frames, n_fft)
+        new_strides = (strides[0], hop_length, 1)
+        frames = mx.as_strided(y, shape=new_shape, strides=new_strides)
+    else:
+        # Fallback: Use optimized gather with pre-computed indices
+        # Create frame start indices: [0, hop_length, 2*hop_length, ...]
+        frame_starts = mx.arange(n_frames) * hop_length  # (n_frames,)
 
-    # Broadcast to get all indices: (n_frames, n_fft)
-    indices = frame_starts[:, None] + sample_offsets[None, :]
+        # Create sample offsets within each frame: [0, 1, 2, ..., n_fft-1]
+        sample_offsets = mx.arange(n_fft)  # (n_fft,)
 
-    # Gather frames using advanced indexing
-    # y shape: (batch, signal_length)
-    # indices shape: (n_frames, n_fft)
-    # Use take to gather along the last axis for each batch element
-    frames = mx.take(y, indices.flatten(), axis=1).reshape(
-        batch_size, n_frames, n_fft
-    )
+        # Broadcast to get all indices: (n_frames, n_fft)
+        indices = frame_starts[:, None] + sample_offsets[None, :]
+
+        # Gather frames - use indices directly without extra flatten/reshape
+        # by leveraging that take gathers along axis=1 for each batch element
+        frames = mx.take(y, indices.flatten(), axis=1).reshape(
+            batch_size, n_frames, n_fft
+        )
 
     return frames  # (batch, n_frames, n_fft)
 
@@ -544,7 +601,7 @@ _SCATTER_ADD_SOURCE = """
     }
 """
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=8)
 def _get_scatter_add_kernel() -> Any:
     """Thread-safe lazy initialization of the scatter-add kernel."""
     return mx.fast.metal_kernel(

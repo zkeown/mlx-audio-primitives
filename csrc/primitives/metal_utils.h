@@ -52,11 +52,14 @@ inline int get_threadgroup_size_1d(int total_threads, int max_threads = 256) {
 
 /**
  * Helper to compute optimal threadgroup dimensions for 2D dispatch.
+ *
+ * Optimized for Apple Silicon GPUs which benefit from wider threadgroups
+ * for better occupancy and memory coalescing.
  */
 inline std::pair<int, int> get_threadgroup_size_2d(
     int dim0, int dim1, int max_total = 256) {
-    // Try to balance dimensions
-    int tg0 = std::min(dim0, 32);
+    // Wider threadgroups (64 vs 32) improve occupancy on Apple Silicon
+    int tg0 = std::min(dim0, 64);
     int tg1 = std::min(dim1, max_total / tg0);
     return {tg0, tg1};
 }

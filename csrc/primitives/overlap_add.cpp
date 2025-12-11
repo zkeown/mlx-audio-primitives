@@ -38,30 +38,28 @@ mlx::core::array overlap_add_metal(
     auto stream = to_stream(s);
 
     auto lib = d.get_library(METAL_LIB_NAME);
-    auto overlap_kernel = d.get_kernel("overlap_add_float", lib);
-    auto normalize_kernel = d.get_kernel("normalize_float", lib);
+    // Use fused kernel for better performance (single dispatch instead of two)
+    auto fused_kernel = d.get_kernel("overlap_add_fused_float", lib);
 
-    // Allocate output arrays
+    // Allocate output array only (no window_sum needed with fused kernel)
     auto output = zeros({batch_size, output_length}, float32, s);
-    auto window_sum = zeros({output_length}, float32, s);
 
     // Evaluate inputs to ensure they're ready
-    eval({frames_f, window_f, output, window_sum});
+    eval({frames_f, window_f, output});
 
-    // Get command encoder and set up overlap_add kernel
+    // Get command encoder and set up fused overlap_add kernel
     auto& enc = d.get_command_encoder(stream.index);
-    enc.set_compute_pipeline_state(overlap_kernel);
+    enc.set_compute_pipeline_state(fused_kernel);
 
-    // Set buffers - must match kernel signature order
+    // Set buffers - fused kernel has fewer buffers (no window_sum output)
     enc.set_input_array(frames_f, 0);      // frames
     enc.set_input_array(window_f, 1);      // window
     enc.set_output_array(output, 2);       // output
-    enc.set_output_array(window_sum, 3);   // window_sum
-    enc.set_bytes(batch_size, 4);          // batch_size
-    enc.set_bytes(n_frames_count, 5);      // n_frames
-    enc.set_bytes(n_fft, 6);               // n_fft
-    enc.set_bytes(hop_length, 7);          // hop_length
-    enc.set_bytes(output_length, 8);       // output_length
+    enc.set_bytes(batch_size, 3);          // batch_size
+    enc.set_bytes(n_frames_count, 4);      // n_frames
+    enc.set_bytes(n_fft, 5);               // n_fft
+    enc.set_bytes(hop_length, 6);          // hop_length
+    enc.set_bytes(output_length, 7);       // output_length
 
     // Dispatch threads: 2D grid (output_length, batch_size)
     auto [tg0, tg1] = get_threadgroup_size_2d(output_length, batch_size);
@@ -69,14 +67,7 @@ mlx::core::array overlap_add_metal(
     MTL::Size group_dims = MTL::Size(tg0, tg1, 1);
     enc.dispatch_threads(grid_dims, group_dims);
 
-    // Now dispatch normalization kernel
-    enc.set_compute_pipeline_state(normalize_kernel);
-    enc.set_output_array(output, 0);       // output (in-place)
-    enc.set_input_array(window_sum, 1);    // window_sum
-    enc.set_bytes(batch_size, 2);          // batch_size
-    enc.set_bytes(output_length, 3);       // output_length
-
-    enc.dispatch_threads(grid_dims, group_dims);
+    // No second kernel dispatch needed - normalization is fused!
 
     return output;
 }
@@ -158,26 +149,45 @@ mlx::core::array overlap_add_cpu(
     // Compute flat indices into (n_frames, n_fft) slice
     auto flat_gather_idx = frame_gather_idx * n_fft + sample_gather_idx;  // (output_length, max_contrib)
 
-    // For each batch, gather and sum
-    std::vector<array> batch_results;
-    batch_results.reserve(batch_size);
+    // Vectorized batch processing: process all batches in a single operation
+    // instead of looping over each batch individually
+    //
+    // Strategy: Reshape windowed_frames to (batch, n_frames * n_fft)
+    // then use broadcasting with flat_gather_idx to gather for all batches at once
+
+    // Flatten the frame dimension: (batch, n_frames, n_fft) -> (batch, n_frames * n_fft)
+    auto windowed_flat = reshape(windowed_frames, {batch_size, n_frames_count * n_fft}, s);
+
+    // Expand flat_gather_idx for broadcasting: (output_length, max_contrib) -> (1, output_length, max_contrib)
+    auto gather_idx_expanded = reshape(flat_gather_idx, {1, output_length, max_contributing_frames}, s);
+    auto mask_expanded = reshape(contribution_mask, {1, output_length, max_contributing_frames}, s);
+
+    // Gather for all batches at once using advanced indexing
+    // We need to gather along axis=1 for each batch
+    // Result shape: (batch, output_length, max_contrib)
+    std::vector<array> batch_gathered;
+    batch_gathered.reserve(batch_size);
+
+    // Unfortunately MLX's take doesn't support batched gather directly,
+    // but we can use a more efficient vectorized approach with fewer operations
     for (int b = 0; b < batch_size; ++b) {
-        // Get this batch's windowed frames: (n_frames, n_fft)
-        auto batch_frames = slice(windowed_frames, {b, 0, 0}, {b + 1, n_frames_count, n_fft}, s);
-        batch_frames = reshape(batch_frames, {n_frames_count * n_fft}, s);  // flatten
-
-        // Gather values
-        auto gathered_vals = take(batch_frames, flat_gather_idx, s);  // (output_length, max_contrib)
-        gathered_vals = gathered_vals * contribution_mask;
-
-        // Sum contributions and normalize
-        auto batch_output = sum(gathered_vals, 1, false, s);  // (output_length,)
-        batch_output = batch_output / window_sum;
-        batch_results.emplace_back(reshape(batch_output, {1, output_length}, s));
+        auto batch_slice = slice(windowed_flat, {b, 0}, {b + 1, n_frames_count * n_fft}, s);
+        batch_slice = reshape(batch_slice, {n_frames_count * n_fft}, s);
+        auto gathered = take(batch_slice, flat_gather_idx, s);  // (output_length, max_contrib)
+        batch_gathered.push_back(reshape(gathered, {1, output_length, max_contributing_frames}, s));
     }
 
-    // Stack batch results
-    auto output = concatenate(batch_results, 0, s);  // (batch, output_length)
+    // Stack all batches: (batch, output_length, max_contrib)
+    auto all_gathered = concatenate(batch_gathered, 0, s);
+
+    // Apply mask and sum in one vectorized operation for all batches
+    all_gathered = all_gathered * mask_expanded;  // Broadcasting applies mask to all batches
+
+    // Sum contributions: (batch, output_length, max_contrib) -> (batch, output_length)
+    auto output = sum(all_gathered, 2, false, s);
+
+    // Normalize by window_sum (broadcasts across batch dimension)
+    output = output / reshape(window_sum, {1, output_length}, s);
 
     return output;
 }

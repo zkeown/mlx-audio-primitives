@@ -57,6 +57,15 @@ test = [
     "torch>=2.0",
     "torchaudio>=2.0",
 ]
+bench = [
+    "librosa>=0.10.0",
+    "scipy>=1.10.0",
+    "torch>=2.0",
+    "torchaudio>=2.0",
+]
+
+[project.scripts]
+mlx-audio-bench = "benchmarks.run:main"
 
 [project.urls]
 Homepage = "https://github.com/zakkeown/mlx-audio-primitives"

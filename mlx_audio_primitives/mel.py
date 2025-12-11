@@ -95,7 +95,11 @@ def mel_to_hz(mels: np.ndarray, htk: bool = False) -> np.ndarray:
         return freqs
 
 
-@lru_cache(maxsize=32)
+# Secondary cache for MLX arrays (avoids CPU→GPU transfer on repeated access)
+_mlx_filterbank_cache: dict[tuple, mx.array] = {}
+
+
+@lru_cache(maxsize=64)
 def _compute_mel_filterbank_np(
     sr: int,
     n_fft: int,
@@ -227,14 +231,21 @@ def mel_filterbank(
             f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})"
         )
 
-    # Get cached filterbank data
+    # Check MLX cache first (avoids CPU→GPU transfer)
+    cache_key = (sr, n_fft, n_mels, fmin, fmax, htk, norm)
+    if cache_key in _mlx_filterbank_cache:
+        return _mlx_filterbank_cache[cache_key]
+
+    # Get cached filterbank data (bytes)
     filterbank_bytes, shape = _compute_mel_filterbank_np(
         sr, n_fft, n_mels, fmin, fmax, htk, norm
     )
 
-    # Convert from bytes back to MLX array
+    # Convert from bytes to MLX array and cache
     filterbank = np.frombuffer(filterbank_bytes, dtype=np.float32).reshape(shape)
-    return mx.array(filterbank)
+    result = mx.array(filterbank)
+    _mlx_filterbank_cache[cache_key] = result
+    return result
 
 
 def melspectrogram(

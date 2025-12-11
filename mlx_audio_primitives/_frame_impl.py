@@ -66,10 +66,11 @@ def frame_signal_batched(
 
     # Priority 2: Use strided view for zero-copy framing (MLX >= 0.5)
     if hasattr(mx, "as_strided"):
-        strides = y.strides
-        # New strides: (batch_stride, hop_length, 1) in elements
+        # MLX arrays are contiguous, so strides are determined by shape.
+        # For a (batch, samples) array, strides are (samples, 1) in elements.
+        batch_stride = signal_length
         new_shape = (batch_size, n_frames, frame_length)
-        new_strides = (strides[0], hop_length, 1)
+        new_strides = (batch_stride, hop_length, 1)
         return mx.as_strided(y, shape=new_shape, strides=new_strides)
 
     # Priority 3: Fallback to gather-based approach

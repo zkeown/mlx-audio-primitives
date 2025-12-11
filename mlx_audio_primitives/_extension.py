@@ -24,12 +24,22 @@ from typing import Any
 # MLX's Python module to be loaded first.
 import mlx.core as _mx  # noqa: F401
 
+HAS_CPP_EXT: bool = False
+_ext: Any | None = None
+
 try:
     from . import _ext as _ext_module
 
-    HAS_CPP_EXT: bool = True
-    _ext: Any | None = _ext_module
-except ImportError:
+    # Verify the extension actually works by calling a simple function.
+    # This catches nanobind type caster issues that occur at runtime
+    # (e.g., NB_DOMAIN mismatch between MLX wheel and our extension).
+    _test_arr = _ext_module.generate_window("hann", 4, True)
+    # If we get here, the extension works
+    HAS_CPP_EXT = True
+    _ext = _ext_module
+except (ImportError, TypeError):
+    # ImportError: extension not built
+    # TypeError: nanobind type caster issues (NB_DOMAIN mismatch)
     HAS_CPP_EXT = False
     _ext = None
 

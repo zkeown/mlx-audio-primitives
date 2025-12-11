@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see added.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe the problem you're trying to solve or the use case for this feature
+      placeholder: I'm trying to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like and how it might work
+      placeholder: |
+        A function that...
+
+        ```python
+        # Example API
+        from mlx_audio_primitives import new_function
+
+        result = new_function(signal, param=value)
+        ```
+    validations:
+      required: true
+
+  - type: input
+    id: librosa-equivalent
+    attributes:
+      label: librosa/torchaudio Equivalent
+      description: If this feature exists in librosa or torchaudio, link to the docs
+      placeholder: "https://librosa.org/doc/latest/generated/librosa.feature.xyz"
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Willing to Contribute?
+      description: Would you be interested in implementing this feature?
+      options:
+        - "Yes, I'd like to submit a PR"
+        - "I could help with testing/review"
+        - "No, just suggesting"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, references, or details

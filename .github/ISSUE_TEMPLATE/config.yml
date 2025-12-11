@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/zkeown/mlx-audio-primitives/discussions
+    about: Ask questions or discuss ideas in GitHub Discussions
+  - name: Documentation
+    url: https://github.com/zkeown/mlx-audio-primitives#readme
+    about: Check the README for usage examples and API reference

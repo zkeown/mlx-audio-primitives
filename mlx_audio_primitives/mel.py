@@ -9,17 +9,14 @@ for precision in filterbank construction. They accept and return np.ndarray.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional, Tuple, Union
 
 import mlx.core as mx
 import numpy as np
 
-from .stft import stft, magnitude
-from ._validation import validate_positive, validate_non_negative
-
 # Import C++ extension with graceful fallback
 # noqa: F401 - reserved for future use
-from ._extension import _ext, HAS_CPP_EXT
+from ._validation import validate_non_negative, validate_positive
+from .stft import magnitude, stft
 
 # Slaney mel scale constants (librosa default)
 # These define the piecewise-linear/log mel scale used by librosa
@@ -106,8 +103,8 @@ def _compute_mel_filterbank_np(
     fmin: float,
     fmax: float,
     htk: bool,
-    norm: Optional[str],
-) -> Tuple[bytes, Tuple[int, int]]:
+    norm: str | None,
+) -> tuple[bytes, tuple[int, int]]:
     """
     Compute mel filterbank as a cacheable tuple structure.
 
@@ -176,9 +173,9 @@ def mel_filterbank(
     n_fft: int,
     n_mels: int = 128,
     fmin: float = 0.0,
-    fmax: Optional[float] = None,
+    fmax: float | None = None,
     htk: bool = False,
-    norm: Optional[str] = "slaney",
+    norm: str | None = "slaney",
 ) -> mx.array:
     """
     Create a mel-scale filterbank matrix.
@@ -244,17 +241,17 @@ def melspectrogram(
     y: mx.array,
     sr: int = 22050,
     n_fft: int = 2048,
-    hop_length: Optional[int] = None,
-    win_length: Optional[int] = None,
-    window: Union[str, mx.array] = "hann",
+    hop_length: int | None = None,
+    win_length: int | None = None,
+    window: str | mx.array = "hann",
     center: bool = True,
     pad_mode: str = "constant",
     power: float = 2.0,
     n_mels: int = 128,
     fmin: float = 0.0,
-    fmax: Optional[float] = None,
+    fmax: float | None = None,
     htk: bool = False,
-    norm: Optional[str] = "slaney",
+    norm: str | None = "slaney",
 ) -> mx.array:
     """
     Compute mel spectrogram from audio waveform.

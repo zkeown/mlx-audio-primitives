@@ -6,26 +6,25 @@ Provides librosa-compatible STFT and ISTFT implementations for MLX.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
-import numpy as np
 import mlx.core as mx
+import numpy as np
 
+# Import C++ extension with graceful fallback
+from ._extension import HAS_CPP_EXT, _ext
 from .windows import get_window
 
 # Numerical constants
 _WINDOW_SUM_EPSILON = 1e-8  # Minimum window sum for numerical stability
 
-# Import C++ extension with graceful fallback
-from ._extension import _ext, HAS_CPP_EXT
-
 
 def stft(
     y: mx.array,
     n_fft: int = 2048,
-    hop_length: Optional[int] = None,
-    win_length: Optional[int] = None,
-    window: Union[str, mx.array] = "hann",
+    hop_length: int | None = None,
+    win_length: int | None = None,
+    window: str | mx.array = "hann",
     center: bool = True,
     pad_mode: str = "constant",
 ) -> mx.array:
@@ -128,12 +127,12 @@ def stft(
 
 def istft(
     stft_matrix: mx.array,
-    hop_length: Optional[int] = None,
-    win_length: Optional[int] = None,
-    n_fft: Optional[int] = None,
-    window: Union[str, mx.array] = "hann",
+    hop_length: int | None = None,
+    win_length: int | None = None,
+    n_fft: int | None = None,
+    window: str | mx.array = "hann",
     center: bool = True,
-    length: Optional[int] = None,
+    length: int | None = None,
 ) -> mx.array:
     """
     Inverse Short-Time Fourier Transform.
@@ -291,7 +290,7 @@ def phase(stft_matrix: mx.array) -> mx.array:
 
 
 def check_nola(
-    window: Union[str, mx.array],
+    window: str | mx.array,
     hop_length: int,
     n_fft: int,
     tol: float = 1e-10,
@@ -562,7 +561,7 @@ def _scatter_add_overlap(
     window_sq: mx.array,
     hop_length: int,
     output_length: int,
-) -> Tuple[mx.array, mx.array]:
+) -> tuple[mx.array, mx.array]:
     """
     Perform scatter-add for overlap-add using custom Metal kernel.
 

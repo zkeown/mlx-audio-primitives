@@ -39,7 +39,8 @@ import mlx.core as _mx  # noqa: F401
 
 # Get version from package metadata (single source of truth in pyproject.toml)
 try:
-    from importlib.metadata import version as _get_version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _get_version
     __version__ = _get_version("mlx-audio-primitives")
 except (ImportError, PackageNotFoundError):
     __version__ = "0.1.0"  # Fallback for editable installs
@@ -47,33 +48,33 @@ except (ImportError, PackageNotFoundError):
 # Import C++ extension availability flag for external use
 from ._extension import HAS_CPP_EXT as _HAS_CPP_EXT  # noqa: F401
 
+# Decibel conversions
+from .convert import (
+    amplitude_to_db,
+    db_to_amplitude,
+    db_to_power,
+    power_to_db,
+)
+
+# Mel-scale operations
+from .mel import (
+    hz_to_mel,
+    mel_filterbank,
+    mel_to_hz,
+    melspectrogram,
+)
+
 # Core STFT operations
 from .stft import (
-    stft,
+    check_nola,
     istft,
     magnitude,
     phase,
-    check_nola,
+    stft,
 )
 
 # Window functions
 from .windows import get_window
-
-# Mel-scale operations
-from .mel import (
-    mel_filterbank,
-    melspectrogram,
-    hz_to_mel,
-    mel_to_hz,
-)
-
-# Decibel conversions
-from .convert import (
-    power_to_db,
-    db_to_power,
-    amplitude_to_db,
-    db_to_amplitude,
-)
 
 __all__ = [
     # Version

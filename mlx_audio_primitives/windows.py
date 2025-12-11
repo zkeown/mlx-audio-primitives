@@ -5,15 +5,14 @@ Provides window functions compatible with librosa/scipy conventions.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Callable, Dict, Tuple, Union
 
-import numpy as np
 import mlx.core as mx
+import numpy as np
 
 # Import C++ extension with graceful fallback
-from ._extension import _ext, HAS_CPP_EXT
-
+from ._extension import HAS_CPP_EXT, _ext
 
 # =============================================================================
 # Window function implementations (private)
@@ -113,7 +112,7 @@ def _rectangular(n: int) -> mx.array:
 
 
 # Window function dispatch table for cleaner lookup
-_WINDOW_FUNCTIONS: Dict[str, Callable[[int], mx.array]] = {
+_WINDOW_FUNCTIONS: dict[str, Callable[[int], mx.array]] = {
     "hann": _hann,
     "hanning": _hann,  # Alias
     "hamming": _hamming,
@@ -130,13 +129,20 @@ _WINDOW_FUNCTIONS: Dict[str, Callable[[int], mx.array]] = {
 # Public API
 # =============================================================================
 
+# Caching Strategy:
+# Window functions are cached using lru_cache with bytes representation.
+# This is efficient because:
+# 1. Windows are small (typically < 8KB for 2048-point windows)
+# 2. They are computed once and reused many times per audio file
+# 3. Bytes representation is hashable and memory-efficient for cache keys
+
 
 @lru_cache(maxsize=64)
 def _get_window_cached(
     window_name: str,
     n_fft: int,
     fftbins: bool,
-) -> Tuple[bytes, int]:
+) -> tuple[bytes, int]:
     """
     Compute window function with caching.
 
@@ -187,7 +193,7 @@ def _get_window_cached(
 
 
 def get_window(
-    window: Union[str, mx.array],
+    window: str | mx.array,
     n_fft: int,
     fftbins: bool = True,
 ) -> mx.array:

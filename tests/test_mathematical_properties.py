@@ -26,6 +26,16 @@ from mlx_audio_primitives import (
     get_window,
 )
 
+# Test tolerance constants
+# Standard tolerance for most floating-point comparisons
+RTOL_STANDARD = 1e-4
+# Strict tolerance for high-precision tests
+RTOL_STRICT = 1e-5
+ATOL_STRICT = 1e-5
+# Relaxed tolerance for tests involving accumulated numerical error
+RTOL_RELAXED = 1e-3
+ATOL_RELAXED = 1e-6
+
 
 class TestParsevalsTheorem:
     """

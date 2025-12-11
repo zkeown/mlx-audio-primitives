@@ -5,17 +5,17 @@ Provides functions to convert between power/amplitude and decibels.
 """
 from __future__ import annotations
 
-from typing import Optional, Union, Callable
+from collections.abc import Callable
 
 import mlx.core as mx
 
 
 def _to_db(
     S: mx.array,
-    ref: Union[float, Callable[[mx.array], mx.array]],
+    ref: float | Callable[[mx.array], mx.array],
     coefficient: float,
     amin: float,
-    top_db: Optional[float],
+    top_db: float | None,
 ) -> mx.array:
     """
     Internal helper for converting spectrogram to decibels.
@@ -61,9 +61,9 @@ def _to_db(
 
 def power_to_db(
     S: mx.array,
-    ref: Union[float, Callable[[mx.array], mx.array]] = 1.0,
+    ref: float | Callable[[mx.array], mx.array] = 1.0,
     amin: float = 1e-10,
-    top_db: Optional[float] = 80.0,
+    top_db: float | None = 80.0,
 ) -> mx.array:
     """
     Convert a power spectrogram to decibel (dB) units.
@@ -130,9 +130,9 @@ def db_to_power(
 
 def amplitude_to_db(
     S: mx.array,
-    ref: Union[float, Callable[[mx.array], mx.array]] = 1.0,
+    ref: float | Callable[[mx.array], mx.array] = 1.0,
     amin: float = 1e-5,
-    top_db: Optional[float] = 80.0,
+    top_db: float | None = 80.0,
 ) -> mx.array:
     """
     Convert an amplitude spectrogram to decibel (dB) units.

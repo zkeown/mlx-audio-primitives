@@ -4,6 +4,7 @@ Griffin-Lim phase reconstruction algorithm.
 Reconstructs audio from magnitude spectrograms using iterative
 phase estimation.
 """
+
 from __future__ import annotations
 
 import mlx.core as mx
@@ -89,8 +90,7 @@ def griffinlim(
     >>> y_reconstructed = griffinlim(S, n_iter=32)
     """
     validate_positive(n_iter, "n_iter")
-    validate_range(momentum, "momentum", min_val=0.0, max_val=1.0,
-                   max_inclusive=False)
+    validate_range(momentum, "momentum", min_val=0.0, max_val=1.0, max_inclusive=False)
 
     # Handle batched vs non-batched
     is_batched = S.ndim == 3
@@ -116,9 +116,7 @@ def griffinlim(
     elif init == "zeros":
         angles = mx.zeros((batch_size, freq_bins, n_frames))
     else:
-        raise ValueError(
-            f"Unknown init: '{init}'. Supported: 'random', 'zeros'"
-        )
+        raise ValueError(f"Unknown init: '{init}'. Supported: 'random', 'zeros'")
 
     # Build initial complex spectrogram
     # S_complex = S * exp(j * angles)

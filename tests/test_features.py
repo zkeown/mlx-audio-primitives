@@ -13,6 +13,7 @@ Tolerance: rtol=1e-4, atol=1e-4 (log operations and FFT differences)
 Note: spectral_contrast and spectral_rolloff use numpy internally for
 operations not supported natively in MLX (searchsorted, complex indexing).
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -42,9 +43,7 @@ class TestSpectralCentroid:
             y=random_signal, sr=22050, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("n_fft", [1024, 2048])
     @pytest.mark.parametrize("hop_length", [256, 512])
@@ -57,9 +56,7 @@ class TestSpectralCentroid:
             y=random_signal, sr=22050, n_fft=n_fft, hop_length=hop_length
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -80,9 +77,7 @@ class TestSpectralCentroid:
             y=random_signal, sr=22050, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_batch_input(self, batch_signals):
         """Test batched input handling."""
@@ -115,9 +110,7 @@ class TestSpectralBandwidth:
             y=random_signal, sr=22050, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("p", [1.0, 2.0, 3.0])
     def test_various_p(self, random_signal, p):
@@ -129,9 +122,7 @@ class TestSpectralBandwidth:
             y=random_signal, sr=22050, n_fft=2048, hop_length=512, p=p
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -161,7 +152,10 @@ class TestSpectralRolloff:
         )
 
         np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=100  # Allow 100 Hz tolerance
+            np.array(result),
+            expected,
+            rtol=1e-4,
+            atol=100,  # Allow 100 Hz tolerance
         )
 
     @pytest.mark.parametrize("roll_percent", [0.5, 0.85, 0.95])
@@ -173,12 +167,14 @@ class TestSpectralRolloff:
         )
 
         expected = librosa.feature.spectral_rolloff(
-            y=random_signal, sr=22050, n_fft=2048, hop_length=512, roll_percent=roll_percent
+            y=random_signal,
+            sr=22050,
+            n_fft=2048,
+            hop_length=512,
+            roll_percent=roll_percent,
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=100
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=100)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -219,9 +215,7 @@ class TestSpectralFlatness:
             y=random_signal, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -276,14 +270,14 @@ class TestSpectralContrast:
             y=random_signal, sr=22050, n_fft=2048, hop_length=512, n_bands=6
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=0.1, atol=0.5
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=0.1, atol=0.5)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
         y_mx = mx.array(random_signal)
-        result = spectral_contrast(y_mx, sr=22050, n_fft=2048, hop_length=512, n_bands=6)
+        result = spectral_contrast(
+            y_mx, sr=22050, n_fft=2048, hop_length=512, n_bands=6
+        )
 
         # Should have n_bands + 1 features
         assert result.shape[0] == 7
@@ -309,24 +303,22 @@ class TestZeroCrossingRate:
             y=random_signal, frame_length=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("frame_length", [1024, 2048])
     @pytest.mark.parametrize("hop_length", [256, 512])
     def test_various_params(self, random_signal, frame_length, hop_length):
         """Test with various parameters."""
         y_mx = mx.array(random_signal)
-        result = zero_crossing_rate(y_mx, frame_length=frame_length, hop_length=hop_length)
+        result = zero_crossing_rate(
+            y_mx, frame_length=frame_length, hop_length=hop_length
+        )
 
         expected = librosa.feature.zero_crossing_rate(
             y=random_signal, frame_length=frame_length, hop_length=hop_length
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -356,7 +348,7 @@ class TestZeroCrossingRate:
         """Test that high frequency has high ZCR."""
         t = np.linspace(0, 1, 22050, dtype=np.float32)
         high_freq = np.sin(2 * np.pi * 5000 * t)  # 5000 Hz
-        low_freq = np.sin(2 * np.pi * 100 * t)    # 100 Hz
+        low_freq = np.sin(2 * np.pi * 100 * t)  # 100 Hz
 
         zcr_high = zero_crossing_rate(mx.array(high_freq))
         zcr_low = zero_crossing_rate(mx.array(low_freq))

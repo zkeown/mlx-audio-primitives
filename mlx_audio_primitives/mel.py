@@ -6,6 +6,7 @@ Provides mel filterbank construction and mel spectrogram computation.
 Note: hz_to_mel() and mel_to_hz() are NumPy-based utilities used internally
 for precision in filterbank construction. They accept and return np.ndarray.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -51,12 +52,12 @@ def hz_to_mel(frequencies: np.ndarray, htk: bool = False) -> np.ndarray:
     else:
         # Slaney formula (librosa default): linear below 1000 Hz, log above.
         # np.where handles 0 Hz safely (linear formula applies there).
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             mels = np.where(
                 frequencies < _SLANEY_MIN_LOG_HZ,
                 (frequencies - _SLANEY_F_MIN) / _SLANEY_F_SP,
                 _SLANEY_MIN_LOG_MEL
-                + np.log(frequencies / _SLANEY_MIN_LOG_HZ) / _SLANEY_LOGSTEP
+                + np.log(frequencies / _SLANEY_MIN_LOG_HZ) / _SLANEY_LOGSTEP,
             )
         return mels
 
@@ -87,8 +88,7 @@ def mel_to_hz(mels: np.ndarray, htk: bool = False) -> np.ndarray:
         freqs = np.where(
             mels < _SLANEY_MIN_LOG_MEL,
             _SLANEY_F_MIN + _SLANEY_F_SP * mels,
-            _SLANEY_MIN_LOG_HZ
-            * np.exp(_SLANEY_LOGSTEP * (mels - _SLANEY_MIN_LOG_MEL))
+            _SLANEY_MIN_LOG_HZ * np.exp(_SLANEY_LOGSTEP * (mels - _SLANEY_MIN_LOG_MEL)),
         )
         return freqs
 
@@ -139,10 +139,10 @@ def _compute_mel_filterbank_np(
 
     # Extract lower, center, upper frequencies for each mel band
     # Shape: (n_mels, 1) for broadcasting with (1, n_freqs)
-    f_lower = hz_points[:-2, np.newaxis]    # (n_mels, 1)
+    f_lower = hz_points[:-2, np.newaxis]  # (n_mels, 1)
     f_center = hz_points[1:-1, np.newaxis]  # (n_mels, 1)
-    f_upper = hz_points[2:, np.newaxis]     # (n_mels, 1)
-    freqs = fft_freqs[np.newaxis, :]        # (1, n_freqs)
+    f_upper = hz_points[2:, np.newaxis]  # (n_mels, 1)
+    freqs = fft_freqs[np.newaxis, :]  # (1, n_freqs)
 
     # Compute slopes for the triangular filters
     # Lower slope: (freq - f_lower) / (f_center - f_lower)
@@ -154,14 +154,12 @@ def _compute_mel_filterbank_np(
     # Triangular filter: min of slopes, clipped to [0, inf)
     # This creates the triangular shape: rises from f_lower to f_center,
     # then falls from f_center to f_upper
-    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(
-        np.float32
-    )
+    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(np.float32)
 
     # Normalize
     if norm == "slaney":
         # Normalize by bandwidth (area under each filter = 1)
-        enorm = 2.0 / (hz_points[2:n_mels + 2] - hz_points[:n_mels])
+        enorm = 2.0 / (hz_points[2 : n_mels + 2] - hz_points[:n_mels])
         filterbank *= enorm[:, np.newaxis]
     elif norm is not None:
         raise ValueError(f"Unknown norm: '{norm}'. Supported: 'slaney', None")
@@ -225,9 +223,7 @@ def mel_filterbank(
     if fmin >= fmax:
         raise ValueError(f"fmin ({fmin}) must be less than fmax ({fmax})")
     if fmax > sr / 2.0:
-        raise ValueError(
-            f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})"
-        )
+        raise ValueError(f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})")
 
     # Check MLX cache first (avoids CPU→GPU transfer)
     cache_key = (sr, n_fft, n_mels, fmin, fmax, htk, norm)

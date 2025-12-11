@@ -3,6 +3,7 @@ Pitch and periodicity analysis primitives.
 
 Provides autocorrelation for pitch detection and periodicity analysis.
 """
+
 from __future__ import annotations
 
 import mlx.core as mx
@@ -219,7 +220,7 @@ def pitch_detect_acf(
                 continue
 
             # Search for peak in valid lag range
-            search_range = r[min_lag:max_lag + 1]
+            search_range = r[min_lag : max_lag + 1]
             if len(search_range) == 0:
                 continue
 
@@ -230,7 +231,10 @@ def pitch_detect_acf(
             # - Later peaks at 2T, 3T, etc. are harmonically related but less reliable
             peaks = []
             for i in range(1, len(search_range) - 1):
-                if search_range[i] > search_range[i - 1] and search_range[i] > search_range[i + 1]:
+                if (
+                    search_range[i] > search_range[i - 1]
+                    and search_range[i] > search_range[i + 1]
+                ):
                     if search_range[i] > threshold:
                         peaks.append((i, search_range[i]))
 
@@ -352,7 +356,7 @@ def periodicity(
                 r = r / r[0]
 
                 # Find maximum in valid lag range
-                search_range = r[min_lag:max_lag + 1]
+                search_range = r[min_lag : max_lag + 1]
                 if len(search_range) > 0:
                     periodicity_np[b, 0, t] = np.max(search_range)
 

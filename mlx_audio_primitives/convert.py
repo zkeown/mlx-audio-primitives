@@ -3,6 +3,7 @@ Decibel conversion utilities.
 
 Provides functions to convert between power/amplitude and decibels.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable

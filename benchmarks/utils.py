@@ -20,6 +20,11 @@ class BenchmarkResult:
     max_abs_error: float
     mean_abs_error: float
     correlation: float  # Pearson correlation coefficient
+    # Optional extended fields for profiling
+    cold_time_ms: float | None = None
+    warm_time_ms: float | None = None
+    peak_memory_mb: float | None = None
+    memory_efficiency: float | None = None
 
 
 def time_function(fn: Callable, warmup: int = 3, runs: int = 10) -> float:

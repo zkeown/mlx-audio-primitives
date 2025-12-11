@@ -10,21 +10,30 @@ Usage:
     mlx-audio-bench --suite stft       # Run only STFT benchmarks
     mlx-audio-bench --suite mel        # Run only mel benchmarks
     mlx-audio-bench --n-fft 4096       # Custom FFT size
+    mlx-audio-bench --scaling          # Run scaling benchmarks
+    mlx-audio-bench --cache-analysis   # Run cache impact analysis
+    mlx-audio-bench --save-baseline    # Save results as baseline
+    mlx-audio-bench --compare-baseline # Compare to stored baseline
 
 The benchmarks measure:
     - Wall-clock execution time (ms)
     - Speedup ratio vs reference implementations
     - Numerical accuracy (max/mean error, correlation)
+    - Cold/warm cache performance (with --cache-analysis)
+    - Memory usage (with --memory)
 """
+
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
 
 from .bench_features import benchmark_all_features
 from .bench_griffinlim import benchmark_griffinlim
 from .bench_mel import benchmark_mel_filterbank, benchmark_melspectrogram
-from .bench_mfcc import benchmark_mfcc, benchmark_delta
+from .bench_mfcc import benchmark_delta, benchmark_mfcc
 from .bench_resample import benchmark_resample, benchmark_resample_ratios
 from .bench_stft import benchmark_istft, benchmark_stft
 from .bench_windows import benchmark_windows
@@ -66,8 +75,48 @@ def format_results(results: list[BenchmarkResult], verbose: bool = False) -> str
                 f"Mean error: {r.mean_abs_error:.2e}, "
                 f"Corr: {r.correlation:.6f}"
             )
+            if r.peak_memory_mb is not None:
+                lines.append(f"    Peak memory: {r.peak_memory_mb:.2f} MB")
 
     lines.append("=" * 80)
+    return "\n".join(lines)
+
+
+def format_results_json(results: list[BenchmarkResult]) -> str:
+    """Format benchmark results as JSON."""
+    from .baseline import create_benchmark_run
+
+    run = create_benchmark_run(results)
+    return json.dumps(run.to_dict(), indent=2)
+
+
+def format_results_markdown(results: list[BenchmarkResult]) -> str:
+    """Format benchmark results as markdown table."""
+    lines = []
+    lines.append("| Benchmark | MLX (ms) | Ref (ms) | Speedup |")
+    lines.append("|-----------|----------|----------|---------|")
+
+    for r in results:
+        speedup_str = f"{r.speedup:.2f}x" if r.speedup > 0 else "N/A"
+        lines.append(
+            f"| {r.name} | {r.mlx_time_ms:.3f} | "
+            f"{r.reference_time_ms:.3f} | {speedup_str} |"
+        )
+
+    return "\n".join(lines)
+
+
+def format_results_csv(results: list[BenchmarkResult]) -> str:
+    """Format benchmark results as CSV."""
+    lines = []
+    lines.append("name,mlx_time_ms,reference_time_ms,speedup,max_abs_error,mean_abs_error,correlation")
+
+    for r in results:
+        lines.append(
+            f"{r.name},{r.mlx_time_ms:.6f},{r.reference_time_ms:.6f},"
+            f"{r.speedup:.4f},{r.max_abs_error:.2e},{r.mean_abs_error:.2e},{r.correlation:.6f}"
+        )
+
     return "\n".join(lines)
 
 
@@ -168,8 +217,14 @@ Examples:
   mlx-audio-bench --verbose          # Show accuracy metrics
   mlx-audio-bench --suite stft       # Run only STFT benchmarks
   mlx-audio-bench --n-fft 4096       # Use custom FFT size
+  mlx-audio-bench --scaling          # Run scaling benchmarks
+  mlx-audio-bench --cache-analysis   # Run cache impact analysis
+  mlx-audio-bench --save-baseline    # Save results as baseline
+  mlx-audio-bench --compare-baseline # Compare to stored baseline
         """,
     )
+
+    # Existing arguments
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Show accuracy metrics"
     )
@@ -189,40 +244,203 @@ Examples:
         "--n-fft", type=int, default=2048, help="FFT size (default: 2048)"
     )
 
+    # New arguments for extended benchmarking
+    parser.add_argument(
+        "--output",
+        choices=["table", "json", "markdown", "csv"],
+        default="table",
+        help="Output format (default: table)",
+    )
+    parser.add_argument(
+        "--scaling",
+        action="store_true",
+        help="Run scaling benchmarks (signal length, batch size, FFT size)",
+    )
+    parser.add_argument(
+        "--cache-analysis",
+        action="store_true",
+        help="Run cache impact analysis (cold vs warm)",
+    )
+    parser.add_argument(
+        "--memory",
+        action="store_true",
+        help="Include memory profiling (requires MLX >= 0.5)",
+    )
+    parser.add_argument(
+        "--save-baseline",
+        action="store_true",
+        help="Save results as new baseline for current platform",
+    )
+    parser.add_argument(
+        "--compare-baseline",
+        action="store_true",
+        help="Compare results to stored baseline",
+    )
+    parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="Exit with code 1 if regression detected",
+    )
+    parser.add_argument(
+        "--regression-threshold",
+        type=float,
+        default=0.10,
+        help="Regression threshold (default: 0.10 = 10%%)",
+    )
+    parser.add_argument(
+        "--platform-info",
+        action="store_true",
+        help="Show platform information only",
+    )
+    parser.add_argument(
+        "--list-baselines",
+        action="store_true",
+        help="List stored baselines",
+    )
+
     opts = parser.parse_args(args)
 
-    print("MLX Audio Primitives Benchmarks")
-    print(f"Signal length: {opts.signal_length} samples")
-    print(f"FFT size: {opts.n_fft}")
+    # Import platform info
+    try:
+        from .platform import format_platform_header, get_platform_info
+    except ImportError:
+        format_platform_header = lambda: "Platform info not available"
+        get_platform_info = None
+
+    # Platform info only
+    if opts.platform_info:
+        print(format_platform_header())
+        return 0
+
+    # List baselines
+    if opts.list_baselines:
+        try:
+            from .baseline import list_baselines
+
+            baselines = list_baselines()
+            if baselines:
+                print("Stored baselines:")
+                for key, timestamp in baselines:
+                    print(f"  {key}: {timestamp}")
+            else:
+                print("No baselines stored.")
+        except ImportError:
+            print("Baseline module not available.")
+        return 0
+
+    # Print header
+    if opts.output == "table":
+        print(format_platform_header())
+        print(f"Signal length: {opts.signal_length} samples")
+        print(f"FFT size: {opts.n_fft}")
+
+    all_results = []
 
     try:
-        if opts.suite == "all":
-            run_all(opts.verbose)
-        elif opts.suite == "stft":
-            results = benchmark_stft(opts.signal_length, opts.n_fft)
-            results.extend(benchmark_istft(opts.signal_length, opts.n_fft))
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "mel":
-            results = benchmark_mel_filterbank()
-            results.extend(benchmark_melspectrogram(opts.signal_length, opts.n_fft))
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "windows":
-            results = benchmark_windows()
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "features":
-            results = benchmark_all_features(opts.signal_length)
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "mfcc":
-            results = benchmark_mfcc(opts.signal_length)
-            results.extend(benchmark_delta(opts.signal_length))
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "resample":
-            results = benchmark_resample(opts.signal_length)
-            results.extend(benchmark_resample_ratios(opts.signal_length))
-            print(format_results(results, opts.verbose))
-        elif opts.suite == "griffinlim":
-            results = benchmark_griffinlim(opts.signal_length, opts.n_fft)
-            print(format_results(results, opts.verbose))
+        # Run scaling benchmarks
+        if opts.scaling:
+            from .bench_scaling import run_all_scaling_benchmarks
+
+            if opts.output == "table":
+                print("\n[Scaling Benchmarks]")
+            scaling_results = run_all_scaling_benchmarks(verbose=opts.verbose)
+            all_results.extend(scaling_results)
+            if opts.output == "table":
+                print(format_results(scaling_results, opts.verbose))
+
+        # Run cache analysis
+        if opts.cache_analysis:
+            from .bench_cache import run_all_cache_benchmarks
+
+            if opts.output == "table":
+                print("\n[Cache Analysis]")
+            cache_results = run_all_cache_benchmarks(verbose=opts.verbose)
+            all_results.extend(cache_results)
+            if opts.output == "table":
+                print(format_results(cache_results, opts.verbose))
+
+        # Run standard benchmark suites
+        if not opts.scaling and not opts.cache_analysis:
+            if opts.suite == "all":
+                all_results = run_all(opts.verbose)
+            elif opts.suite == "stft":
+                results = benchmark_stft(opts.signal_length, opts.n_fft)
+                results.extend(benchmark_istft(opts.signal_length, opts.n_fft))
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "mel":
+                results = benchmark_mel_filterbank()
+                results.extend(benchmark_melspectrogram(opts.signal_length, opts.n_fft))
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "windows":
+                results = benchmark_windows()
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "features":
+                results = benchmark_all_features(opts.signal_length)
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "mfcc":
+                results = benchmark_mfcc(opts.signal_length)
+                results.extend(benchmark_delta(opts.signal_length))
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "resample":
+                results = benchmark_resample(opts.signal_length)
+                results.extend(benchmark_resample_ratios(opts.signal_length))
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+            elif opts.suite == "griffinlim":
+                results = benchmark_griffinlim(opts.signal_length, opts.n_fft)
+                all_results.extend(results)
+                if opts.output == "table":
+                    print(format_results(results, opts.verbose))
+
+        # Output formatting
+        if opts.output == "json":
+            print(format_results_json(all_results))
+        elif opts.output == "markdown":
+            print(format_results_markdown(all_results))
+        elif opts.output == "csv":
+            print(format_results_csv(all_results))
+
+        # Save baseline
+        if opts.save_baseline:
+            try:
+                from .baseline import create_benchmark_run, save_baseline
+
+                run = create_benchmark_run(all_results)
+                platform_key = get_platform_info().key if get_platform_info else "unknown"
+                save_baseline(run, platform_key)
+                print(f"\nBaseline saved for platform: {platform_key}")
+            except ImportError as e:
+                print(f"\nCould not save baseline: {e}")
+
+        # Compare to baseline
+        if opts.compare_baseline:
+            try:
+                from .baseline import compare_to_baseline
+
+                report = compare_to_baseline(
+                    all_results,
+                    threshold=opts.regression_threshold,
+                )
+                if report is None:
+                    print("\nNo baseline found for current platform.")
+                else:
+                    print(f"\n{report.format_summary()}")
+                    if report.has_regressions and opts.fail_on_regression:
+                        return 1
+            except ImportError as e:
+                print(f"\nCould not compare to baseline: {e}")
+
     except ImportError as e:
         print(f"\nError: Missing dependency - {e}")
         print("Install benchmark dependencies with: pip install -e .[bench]")

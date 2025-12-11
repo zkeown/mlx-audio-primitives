@@ -4,6 +4,7 @@ Spectral feature extraction.
 Provides spectral centroid, bandwidth, rolloff, flatness, contrast,
 and zero crossing rate computations.
 """
+
 from __future__ import annotations
 
 import mlx.core as mx
@@ -228,8 +229,7 @@ def spectral_bandwidth(
         bandwidth = mx.power(weighted / normalizer, 1.0 / p)
     else:
         bandwidth = mx.power(
-            mx.sum(S * mx.power(deviation, p), axis=1, keepdims=True),
-            1.0 / p
+            mx.sum(S * mx.power(deviation, p), axis=1, keepdims=True), 1.0 / p
         )
 
     if not is_batched:
@@ -532,7 +532,7 @@ def spectral_contrast(
 
         # Extend last band to Nyquist
         if k == n_bands and idx[-1] + 1 < len(current_band):
-            current_band[idx[-1] + 1:] = True
+            current_band[idx[-1] + 1 :] = True
 
         # Calculate n_quantile BEFORE removing last bin (matches librosa)
         n_quantile = int(np.maximum(np.rint(quantile * np.sum(current_band)), 1))
@@ -641,10 +641,10 @@ def zero_crossing_rate(
 
     # Pad with False at the start to match librosa's pad=False behavior
     # This keeps the shape as (batch, n_frames, frame_length)
-    crossings = np.concatenate([
-        np.zeros((*y_np.shape[:-1], 1), dtype=sign_changes.dtype),
-        sign_changes
-    ], axis=-1)
+    crossings = np.concatenate(
+        [np.zeros((*y_np.shape[:-1], 1), dtype=sign_changes.dtype), sign_changes],
+        axis=-1,
+    )
 
     # ZCR = mean(crossings) over the frame
     zcr_np = np.mean(crossings, axis=-1, keepdims=True)

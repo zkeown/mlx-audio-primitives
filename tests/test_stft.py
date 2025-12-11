@@ -13,6 +13,7 @@ Cross-references:
 - Mathematical properties: test_mathematical_properties.py
 - PyTorch validation: test_torchaudio_crossval.py
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -142,9 +143,7 @@ class TestISTFT:
         reconstructed = istft(S, hop_length=hop_length, length=len(chirp_signal))
         reconstructed_np = np.array(reconstructed)
 
-        np.testing.assert_allclose(
-            reconstructed_np, chirp_signal, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(reconstructed_np, chirp_signal, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("hop_length", [256, 512, 1024])
     def test_round_trip_various_hop_lengths(self, random_signal, hop_length):
@@ -335,9 +334,7 @@ class TestReflectPaddingEdgeCases:
         reconstructed_np = np.array(reconstructed)
 
         # Allow slightly higher tolerance for edge cases
-        np.testing.assert_allclose(
-            reconstructed_np, short_signal, rtol=1e-3, atol=1e-3
-        )
+        np.testing.assert_allclose(reconstructed_np, short_signal, rtol=1e-3, atol=1e-3)
 
     def test_reflect_padding_matches_librosa(self, random_signal):
         """Test that reflect padding matches librosa exactly."""
@@ -349,9 +346,7 @@ class TestReflectPaddingEdgeCases:
         )
 
         y_mlx = mx.array(random_signal)
-        actual = stft(
-            y_mlx, n_fft=n_fft, hop_length=hop_length, pad_mode="reflect"
-        )
+        actual = stft(y_mlx, n_fft=n_fft, hop_length=hop_length, pad_mode="reflect")
         actual_np = np.array(actual)
 
         np.testing.assert_allclose(actual_np, expected, rtol=1e-4, atol=1e-4)

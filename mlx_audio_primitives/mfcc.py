@@ -3,6 +3,7 @@ Mel-frequency cepstral coefficients (MFCC) and delta features.
 
 Provides MFCC extraction with DCT computed via cached NumPy basis matrices.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -120,9 +121,7 @@ def dct(
         dct_matrix = _mlx_dct_cache[cache_key]
     else:
         dct_bytes, shape = _compute_dct_matrix_np(n, input_size, norm)
-        dct_matrix = mx.array(
-            np.frombuffer(dct_bytes, dtype=np.float32).reshape(shape)
-        )
+        dct_matrix = mx.array(np.frombuffer(dct_bytes, dtype=np.float32).reshape(shape))
         _mlx_dct_cache[cache_key] = dct_matrix
 
     # Apply DCT: output = dct_matrix @ x

@@ -3,6 +3,7 @@ Time-domain audio primitives.
 
 Provides signal framing, RMS energy computation, and pre-emphasis filtering.
 """
+
 from __future__ import annotations
 
 import mlx.core as mx
@@ -141,15 +142,14 @@ def rms(
             y = mx.pad(y, [(0, 0), (pad_length, pad_length)], mode="edge")
         else:
             raise ValueError(
-                f"Unknown pad_mode: '{pad_mode}'. "
-                f"Supported: 'constant', 'edge'"
+                f"Unknown pad_mode: '{pad_mode}'. Supported: 'constant', 'edge'"
             )
 
     # Frame the signal: (batch, n_frames, frame_length)
     frames = frame(y, frame_length, hop_length)
 
     # Compute RMS: sqrt(mean(x^2))
-    rms_energy = mx.sqrt(mx.mean(frames ** 2, axis=-1, keepdims=True))
+    rms_energy = mx.sqrt(mx.mean(frames**2, axis=-1, keepdims=True))
 
     # Transpose to (batch, 1, n_frames) to match librosa convention
     rms_energy = mx.transpose(rms_energy, (0, 2, 1))
@@ -161,11 +161,41 @@ def rms(
     return rms_energy
 
 
+def _preemphasis_mlx(
+    y: mx.array,
+    coef: float,
+    zi: mx.array | None = None,
+) -> tuple[mx.array, mx.array]:
+    """
+    MLX-native preemphasis implementation.
+
+    This is a vectorized FIR filter: y_out[n] = y[n] - coef * y[n-1]
+    Much faster than scipy.signal.lfilter as it avoids CPU<->GPU transfer.
+    """
+    # Compute initial state (linear extrapolation to match librosa)
+    if zi is None:
+        zi = 2 * y[..., 0:1] - y[..., 1:2]
+    elif zi.ndim == 0:
+        zi = zi[None]
+
+    # y_shifted = [zi, y[0], y[1], ..., y[n-2]]
+    y_shifted = mx.concatenate([zi, y[..., :-1]], axis=-1)
+
+    # y_out[n] = y[n] - coef * y[n-1]
+    y_out = y - coef * y_shifted
+
+    # Final state is the last sample
+    zf = y[..., -1:]
+
+    return y_out, zf
+
+
 def preemphasis(
     y: mx.array,
     coef: float = 0.97,
     zi: mx.array | None = None,
     return_zf: bool = False,
+    use_mlx: bool = True,
 ) -> mx.array | tuple[mx.array, mx.array]:
     """
     Apply pre-emphasis filter to emphasize high frequencies.
@@ -184,6 +214,9 @@ def preemphasis(
         (zi = 2*y[0] - y[1]) to match librosa behavior.
     return_zf : bool, default=False
         If True, return the final filter state.
+    use_mlx : bool, default=True
+        If True, use MLX-native implementation (faster).
+        If False, use scipy.signal.lfilter (exact librosa compatibility).
 
     Returns
     -------
@@ -201,9 +234,6 @@ def preemphasis(
     if not 0.0 <= coef <= 1.0:
         raise ValueError(f"coef must be in [0, 1], got {coef}")
 
-    # Use scipy.signal.lfilter for exact librosa compatibility
-    from scipy import signal
-
     # Handle batched input
     input_is_1d = y.ndim == 1
     if input_is_1d:
@@ -211,31 +241,48 @@ def preemphasis(
 
     batch_size, signal_length = y.shape
 
-    # Filter coefficients
-    b = np.array([1.0, -coef], dtype=np.float32)
-    a = np.array([1.0], dtype=np.float32)
+    if use_mlx:
+        # Fast MLX-native implementation
+        # Handle zi shape for MLX path
+        if zi is not None:
+            if isinstance(zi, mx.array):
+                if zi.ndim == 0:
+                    zi = mx.broadcast_to(zi[None, None], (batch_size, 1))
+                elif zi.ndim == 1:
+                    if zi.shape[0] != batch_size:
+                        zi = mx.broadcast_to(zi[None, :], (batch_size, 1))
+                    else:
+                        zi = zi[:, None]
+            else:
+                zi = mx.array([[zi]] * batch_size)
 
-    y_np = np.array(y)
-
-    # Default zi: linear extrapolation (matches librosa)
-    # zi = 2*y[0] - y[1] extrapolates the signal backwards by one sample,
-    # which minimizes the transient at the start of the filtered output.
-    # Without this, the first sample would be y[0] (zi=0), causing a discontinuity.
-    if zi is None:
-        zi_np = 2 * y_np[..., 0:1] - y_np[..., 1:2]
+        y_out, zf = _preemphasis_mlx(y, coef, zi)
     else:
-        zi_np = np.atleast_1d(np.array(zi))
-        if zi_np.ndim == 1 and zi_np.shape[0] != batch_size:
-            zi_np = np.broadcast_to(zi_np, (batch_size, 1))
-        elif zi_np.ndim == 1:
-            zi_np = zi_np[:, None]
+        # Use scipy.signal.lfilter for exact librosa compatibility
+        from scipy import signal
 
-    y_out_np, zf_np = signal.lfilter(
-        b, a, y_np, zi=zi_np.astype(np.float32), axis=-1
-    )
+        # Filter coefficients
+        b = np.array([1.0, -coef], dtype=np.float32)
+        a = np.array([1.0], dtype=np.float32)
 
-    y_out = mx.array(y_out_np.astype(np.float32))
-    zf = mx.array(zf_np.astype(np.float32))
+        y_np = np.array(y)
+
+        # Default zi: linear extrapolation (matches librosa)
+        if zi is None:
+            zi_np = 2 * y_np[..., 0:1] - y_np[..., 1:2]
+        else:
+            zi_np = np.atleast_1d(np.array(zi))
+            if zi_np.ndim == 1 and zi_np.shape[0] != batch_size:
+                zi_np = np.broadcast_to(zi_np, (batch_size, 1))
+            elif zi_np.ndim == 1:
+                zi_np = zi_np[:, None]
+
+        y_out_np, zf_np = signal.lfilter(
+            b, a, y_np, zi=zi_np.astype(np.float32), axis=-1
+        )
+
+        y_out = mx.array(y_out_np.astype(np.float32))
+        zf = mx.array(zf_np.astype(np.float32))
 
     # Remove batch dimension if input was 1D
     if input_is_1d:
@@ -320,9 +367,7 @@ def deemphasis(
         # librosa preemphasis uses zi = 2*y[0] - y[1], so deemphasis
         # needs to compensate for this
         zi_zeros = np.zeros((batch_size, 1), dtype=np.float32)
-        y_out_np, zf_np = signal.lfilter(
-            b, a, y_np, zi=zi_zeros, axis=-1
-        )
+        y_out_np, zf_np = signal.lfilter(b, a, y_np, zi=zi_zeros, axis=-1)
 
         # Apply correction factor (matches librosa implementation)
         # The preemphasis filter used zi = 2*y[0] - y[1], which adds an offset

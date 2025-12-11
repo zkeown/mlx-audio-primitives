@@ -13,6 +13,7 @@ Cross-references:
 - Mathematical properties: test_mathematical_properties.py
 - PyTorch validation: test_torchaudio_crossval.py
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -117,9 +118,7 @@ class TestMelFilterbank:
         expected = librosa.filters.mel(
             sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax
         )
-        actual = mel_filterbank(
-            sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax
-        )
+        actual = mel_filterbank(sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax)
         actual_np = np.array(actual)
 
         np.testing.assert_allclose(actual_np, expected, rtol=1e-5, atol=1e-5)
@@ -181,7 +180,9 @@ class TestMelspectrogram:
         n_mels = 128
 
         y_mlx = mx.array(random_signal)
-        result = melspectrogram(y_mlx, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
+        result = melspectrogram(
+            y_mlx, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels
+        )
 
         # Expected shape: (n_mels, n_frames)
         1 + (len(random_signal) + n_fft // 2 * 2 - n_fft) // hop_length

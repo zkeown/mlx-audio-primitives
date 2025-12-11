@@ -9,6 +9,7 @@ Tests cover:
 - Shape and dtype validation
 - Error handling for unknown window types
 """
+
 import mlx.core as mx
 import numpy as np
 import pytest

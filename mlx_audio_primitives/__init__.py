@@ -85,6 +85,7 @@ import mlx.core as _mx  # noqa: F401
 try:
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _get_version
+
     __version__ = _get_version("mlx-audio-primitives")
 except (ImportError, PackageNotFoundError):
     __version__ = "0.1.0"  # Fallback for editable installs

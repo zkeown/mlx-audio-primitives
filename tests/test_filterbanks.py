@@ -14,6 +14,7 @@ Tolerance: rtol=1e-5, atol=1e-5 (direct computation, no FFT)
 Note: Bark scale approximates critical bands of human hearing.
 Formula: bark = 6 * arcsinh(f / 600) (Traunmuller, 1990)
 """
+
 import mlx.core as mx
 import numpy as np
 import pytest
@@ -249,4 +250,6 @@ class TestFilterbankComparison:
             nonzero_bins = np.sum(coverage > 0)
 
             # At least 50% of bins should be covered
-            assert nonzero_bins > 0.5 * fb_np.shape[1], f"{name} filterbank has poor coverage"
+            assert nonzero_bins > 0.5 * fb_np.shape[1], (
+                f"{name} filterbank has poor coverage"
+            )

@@ -15,6 +15,7 @@ Tolerance: rtol=1e-4, atol=1e-4 (FFT-based resampling differences)
 Note: resample() uses scipy.signal.resample (FFT method).
 resample_poly() uses scipy.signal.resample_poly (polyphase FIR method).
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -49,9 +50,7 @@ class TestResample:
         assert len(np.array(result)) == len(expected)
 
         # Check values match exactly (same algorithm)
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_upsample_2x(self, random_signal):
         """Test 2x upsampling matches librosa with res_type='fft'."""
@@ -67,17 +66,18 @@ class TestResample:
         assert len(np.array(result)) == len(expected)
 
         # Check values match exactly (same algorithm)
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
-    @pytest.mark.parametrize("orig_sr,target_sr", [
-        (44100, 22050),
-        (22050, 16000),
-        (16000, 8000),
-        (8000, 16000),
-        (22050, 44100),
-    ])
+    @pytest.mark.parametrize(
+        "orig_sr,target_sr",
+        [
+            (44100, 22050),
+            (22050, 16000),
+            (16000, 8000),
+            (8000, 16000),
+            (22050, 44100),
+        ],
+    )
     def test_various_rates(self, random_signal, orig_sr, target_sr):
         """Test resampling with various rate combinations."""
         y_mx = mx.array(random_signal)
@@ -123,7 +123,7 @@ class TestResample:
 
         # Compute FFT and check peak is near 1000 Hz
         fft_result = np.abs(np.fft.rfft(y_resampled_np))
-        freqs = np.fft.rfftfreq(len(y_resampled_np), 1/22050)
+        freqs = np.fft.rfftfreq(len(y_resampled_np), 1 / 22050)
         peak_freq = freqs[np.argmax(fft_result)]
 
         assert abs(peak_freq - freq) < 50  # Within 50 Hz
@@ -186,7 +186,9 @@ class TestResamplePoly:
             np.array(result_2_4), np.array(result_1_2), rtol=1e-5, atol=1e-5
         )
 
-    @pytest.mark.parametrize("up,down", [(1, 2), (2, 1), (3, 1), (1, 3), (2, 3), (3, 2)])
+    @pytest.mark.parametrize(
+        "up,down", [(1, 2), (2, 1), (3, 1), (1, 3), (2, 3), (3, 2)]
+    )
     def test_various_ratios(self, short_signal, up, down):
         """Test with various up/down ratios."""
         y_mx = mx.array(short_signal)
@@ -211,12 +213,12 @@ class TestResamplingQuality:
         y_mx = mx.array(random_signal)
 
         # Original energy
-        original_energy = np.sum(random_signal ** 2) / len(random_signal)
+        original_energy = np.sum(random_signal**2) / len(random_signal)
 
         # Downsample and compute energy
         y_down = resample(y_mx, orig_sr=44100, target_sr=22050)
         y_down_np = np.array(y_down)
-        down_energy = np.sum(y_down_np ** 2) / len(y_down_np)
+        down_energy = np.sum(y_down_np**2) / len(y_down_np)
 
         # Energy should be similar (within 50%)
         assert abs(down_energy - original_energy) / original_energy < 0.5
@@ -237,8 +239,8 @@ class TestResamplingQuality:
         y_resampled_np = np.array(y_resampled)
 
         # Energy should be much lower (high freq was filtered)
-        original_energy = np.sum(y ** 2)
-        resampled_energy = np.sum(y_resampled_np ** 2)
+        original_energy = np.sum(y**2)
+        resampled_energy = np.sum(y_resampled_np**2)
 
         # Resampled should have much less energy (high freq removed)
         assert resampled_energy < 0.1 * original_energy

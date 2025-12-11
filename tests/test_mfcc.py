@@ -14,6 +14,7 @@ Tolerance: rtol=1e-4, atol=1e-4 (DCT and log operations)
 
 Pipeline: audio -> mel spectrogram -> log -> DCT -> (optional lifter)
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -34,9 +35,7 @@ class TestMFCC:
             y=random_signal, sr=22050, n_mfcc=13, n_mels=128, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("n_mfcc", [13, 20, 40])
     def test_various_n_mfcc(self, random_signal, n_mfcc):
@@ -48,9 +47,7 @@ class TestMFCC:
             y=random_signal, sr=22050, n_mfcc=n_mfcc, n_fft=2048, hop_length=512
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("n_mels", [40, 80, 128])
     def test_various_n_mels(self, random_signal, n_mels):
@@ -62,9 +59,7 @@ class TestMFCC:
             y=random_signal, sr=22050, n_mfcc=13, n_mels=n_mels
         )
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -88,13 +83,9 @@ class TestMFCC:
         # Both should use the same pre-computed S_db
         result = mfcc(S=S_db_mx, sr=22050, n_mfcc=13)
 
-        expected = librosa.feature.mfcc(
-            S=S_db_librosa, sr=22050, n_mfcc=13
-        )
+        expected = librosa.feature.mfcc(S=S_db_librosa, sr=22050, n_mfcc=13)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_batch_input(self, batch_signals):
         """Test batched input handling."""
@@ -115,9 +106,7 @@ class TestMFCC:
         assert not np.allclose(np.array(result_no_lift), np.array(result_lift))
 
         # Compare with librosa liftering
-        expected = librosa.feature.mfcc(
-            y=random_signal, sr=22050, n_mfcc=13, lifter=22
-        )
+        expected = librosa.feature.mfcc(y=random_signal, sr=22050, n_mfcc=13, lifter=22)
 
         # Relaxed tolerance to account for C++ DCT implementation differences
         np.testing.assert_allclose(
@@ -146,9 +135,7 @@ class TestDelta:
         mfccs_np = np.array(mfccs)
         expected = librosa.feature.delta(mfccs_np, width=9, order=1)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_delta_delta(self, random_signal):
         """Test second order delta (acceleration)."""
@@ -161,9 +148,7 @@ class TestDelta:
         mfccs_np = np.array(mfccs)
         expected = librosa.feature.delta(mfccs_np, width=9, order=2)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("width", [3, 5, 9, 13])
     def test_various_width(self, random_signal, width):
@@ -176,9 +161,7 @@ class TestDelta:
         mfccs_np = np.array(mfccs)
         expected = librosa.feature.delta(mfccs_np, width=width, order=1)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape matches input."""
@@ -217,9 +200,7 @@ class TestDCT:
         expected = scipy_dct(x, type=2, norm="ortho")
 
         # Relaxed tolerance (rtol=1e-4) to account for C++ matmul-based DCT vs scipy
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_dct_truncated(self):
         """Test DCT with fewer output coefficients."""
@@ -234,9 +215,7 @@ class TestDCT:
         expected = scipy_dct(x, type=2, norm="ortho")[:20]
 
         # Relaxed tolerance to account for C++ matmul-based DCT vs scipy
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_dct_2d(self):
         """Test DCT on 2D input."""
@@ -250,9 +229,7 @@ class TestDCT:
         expected = scipy_dct(x, type=2, norm="ortho", axis=-1)
 
         # Relaxed tolerance to account for C++ matmul-based DCT vs scipy
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_invalid_type(self):
         """Test error for unsupported DCT type."""

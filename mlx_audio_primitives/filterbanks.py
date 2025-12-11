@@ -3,6 +3,7 @@ Filterbank construction beyond mel scale.
 
 Provides linear-scale and Bark-scale filterbanks for audio analysis.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -37,9 +38,8 @@ def hz_to_bark(frequencies: np.ndarray, formula: str = "zwicker") -> np.ndarray:
         # Zwicker & Terhardt (1980): "Analytical expressions for critical-band rate
         # and critical bandwidth as a function of frequency"
         # JASA 68(5): 1523-1525. Two-term arctan approximation for critical bands.
-        return (
-            13.0 * np.arctan(0.00076 * frequencies)
-            + 3.5 * np.arctan((frequencies / 7500.0) ** 2)
+        return 13.0 * np.arctan(0.00076 * frequencies) + 3.5 * np.arctan(
+            (frequencies / 7500.0) ** 2
         )
     elif formula == "traunmuller":
         # Traunmuller (1990): "Analytical expressions for the tonotopic sensory scale"
@@ -144,13 +144,11 @@ def _compute_bark_filterbank_np(
     lower_slope = (freqs - f_lower) / (f_center - f_lower + 1e-10)
     upper_slope = (f_upper - freqs) / (f_upper - f_center + 1e-10)
 
-    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(
-        np.float32
-    )
+    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(np.float32)
 
     # Normalize
     if norm == "slaney":
-        enorm = 2.0 / (hz_points[2:n_bands + 2] - hz_points[:n_bands])
+        enorm = 2.0 / (hz_points[2 : n_bands + 2] - hz_points[:n_bands])
         filterbank *= enorm[:, np.newaxis]
     elif norm is not None:
         raise ValueError(f"Unknown norm: '{norm}'. Supported: 'slaney', None")
@@ -214,9 +212,7 @@ def bark_filterbank(
     if fmin >= fmax:
         raise ValueError(f"fmin ({fmin}) must be less than fmax ({fmax})")
     if fmax > sr / 2.0:
-        raise ValueError(
-            f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})"
-        )
+        raise ValueError(f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})")
 
     # Check MLX cache first
     cache_key = (sr, n_fft, n_bands, fmin, fmax, formula, norm)
@@ -262,13 +258,11 @@ def _compute_linear_filterbank_np(
     lower_slope = (freqs - f_lower) / (f_center - f_lower + 1e-10)
     upper_slope = (f_upper - freqs) / (f_upper - f_center + 1e-10)
 
-    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(
-        np.float32
-    )
+    filterbank = np.maximum(0, np.minimum(lower_slope, upper_slope)).astype(np.float32)
 
     # Normalize
     if norm == "slaney":
-        enorm = 2.0 / (hz_points[2:n_bands + 2] - hz_points[:n_bands])
+        enorm = 2.0 / (hz_points[2 : n_bands + 2] - hz_points[:n_bands])
         filterbank *= enorm[:, np.newaxis]
     elif norm is not None:
         raise ValueError(f"Unknown norm: '{norm}'. Supported: 'slaney', None")
@@ -329,9 +323,7 @@ def linear_filterbank(
     if fmin >= fmax:
         raise ValueError(f"fmin ({fmin}) must be less than fmax ({fmax})")
     if fmax > sr / 2.0:
-        raise ValueError(
-            f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})"
-        )
+        raise ValueError(f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})")
 
     # Check MLX cache first
     cache_key = (sr, n_fft, n_bands, fmin, fmax, norm)

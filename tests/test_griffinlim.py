@@ -16,6 +16,7 @@ Note: Griffin-Lim cannot recover original phase - it finds a consistent
 phase that produces the given magnitude spectrogram. Quality improves
 with more iterations but with diminishing returns after ~32.
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -37,8 +38,7 @@ class TestGriffinLim:
 
         # Reconstruct
         y_reconstructed = griffinlim(
-            S_mag, n_iter=64, hop_length=512, n_fft=2048,
-            length=len(chirp_signal)
+            S_mag, n_iter=64, hop_length=512, n_fft=2048, length=len(chirp_signal)
         )
 
         y_reconstructed_np = np.array(y_reconstructed)
@@ -48,7 +48,9 @@ class TestGriffinLim:
 
         # Griffin-Lim minimizes magnitude error, not waveform correlation
         # The reconstructed signal may be time-reversed or phase-shifted
-        S_recon = magnitude(stft(mx.array(y_reconstructed_np), n_fft=2048, hop_length=512))
+        S_recon = magnitude(
+            stft(mx.array(y_reconstructed_np), n_fft=2048, hop_length=512)
+        )
         S_mag_np = np.array(S_mag)
         S_recon_np = np.array(S_recon)
 
@@ -63,15 +65,23 @@ class TestGriffinLim:
 
         # Reconstruct with librosa
         librosa_result = librosa.griffinlim(
-            S, n_iter=64, hop_length=512, n_fft=2048,
-            length=len(chirp_signal), random_state=42
+            S,
+            n_iter=64,
+            hop_length=512,
+            n_fft=2048,
+            length=len(chirp_signal),
+            random_state=42,
         )
 
         # Reconstruct with our implementation
         S_mx = mx.array(S)
         our_result = griffinlim(
-            S_mx, n_iter=64, hop_length=512, n_fft=2048,
-            length=len(chirp_signal), random_state=42
+            S_mx,
+            n_iter=64,
+            hop_length=512,
+            n_fft=2048,
+            length=len(chirp_signal),
+            random_state=42,
         )
 
         our_result_np = np.array(our_result)
@@ -94,8 +104,11 @@ class TestGriffinLim:
         S_mag = magnitude(S_complex)
 
         y_reconstructed = griffinlim(
-            S_mag, n_iter=n_iter, hop_length=512,
-            length=len(chirp_signal), random_state=42
+            S_mag,
+            n_iter=n_iter,
+            hop_length=512,
+            length=len(chirp_signal),
+            random_state=42,
         )
 
         # Compute reconstruction error
@@ -115,16 +128,14 @@ class TestGriffinLim:
 
         # With momentum
         y_momentum = griffinlim(
-            S_mag, n_iter=16, hop_length=512,
-            momentum=0.99, random_state=42
+            S_mag, n_iter=16, hop_length=512, momentum=0.99, random_state=42
         )
         S_momentum = magnitude(stft(y_momentum, n_fft=2048, hop_length=512))
         error_momentum = np.mean((np.array(S_mag) - np.array(S_momentum)) ** 2)
 
         # Without momentum
         y_no_momentum = griffinlim(
-            S_mag, n_iter=16, hop_length=512,
-            momentum=0.0, random_state=42
+            S_mag, n_iter=16, hop_length=512, momentum=0.0, random_state=42
         )
         S_no_momentum = magnitude(stft(y_no_momentum, n_fft=2048, hop_length=512))
         error_no_momentum = np.mean((np.array(S_mag) - np.array(S_no_momentum)) ** 2)
@@ -141,15 +152,11 @@ class TestGriffinLim:
 
         # Random init
         y_random = griffinlim(
-            S_mag, n_iter=32, hop_length=512,
-            init="random", random_state=42
+            S_mag, n_iter=32, hop_length=512, init="random", random_state=42
         )
 
         # Zeros init
-        y_zeros = griffinlim(
-            S_mag, n_iter=32, hop_length=512,
-            init="zeros"
-        )
+        y_zeros = griffinlim(S_mag, n_iter=32, hop_length=512, init="zeros")
 
         # Both should produce valid output
         assert len(np.array(y_random)) > 0
@@ -164,8 +171,7 @@ class TestGriffinLim:
         # Request specific length
         target_length = 10000
         y_reconstructed = griffinlim(
-            S_mag, n_iter=32, hop_length=512,
-            length=target_length
+            S_mag, n_iter=32, hop_length=512, length=target_length
         )
 
         assert len(np.array(y_reconstructed)) == target_length
@@ -196,9 +202,7 @@ class TestGriffinLim:
         y1 = griffinlim(S_mag, n_iter=32, random_state=42)
         y2 = griffinlim(S_mag, n_iter=32, random_state=42)
 
-        np.testing.assert_allclose(
-            np.array(y1), np.array(y2), rtol=1e-5, atol=1e-5
-        )
+        np.testing.assert_allclose(np.array(y1), np.array(y2), rtol=1e-5, atol=1e-5)
 
 
 class TestGriffinLimQuality:
@@ -216,8 +220,7 @@ class TestGriffinLimQuality:
         S_mag = magnitude(stft(y_mx, n_fft=2048, hop_length=512))
 
         y_reconstructed = griffinlim(
-            S_mag, n_iter=64, hop_length=512,
-            length=len(y), random_state=42
+            S_mag, n_iter=64, hop_length=512, length=len(y), random_state=42
         )
 
         y_reconstructed_np = np.array(y_reconstructed)
@@ -239,8 +242,7 @@ class TestGriffinLimQuality:
         S_mag = magnitude(stft(y_mx, n_fft=2048, hop_length=512))
 
         y_reconstructed = griffinlim(
-            S_mag, n_iter=64, hop_length=512,
-            length=len(chirp_signal)
+            S_mag, n_iter=64, hop_length=512, length=len(chirp_signal)
         )
 
         # Recompute magnitude
@@ -261,10 +263,7 @@ class TestGriffinLimQuality:
 
         errors = []
         for n_iter in [4, 8, 16, 32, 64]:
-            y_recon = griffinlim(
-                S_mag, n_iter=n_iter, hop_length=512,
-                random_state=42
-            )
+            y_recon = griffinlim(S_mag, n_iter=n_iter, hop_length=512, random_state=42)
             S_recon = magnitude(stft(y_recon, n_fft=2048, hop_length=512))
             error = np.mean((S_mag_np - np.array(S_recon)) ** 2)
             errors.append(error)

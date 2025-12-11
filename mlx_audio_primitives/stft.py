@@ -3,6 +3,7 @@ Short-Time Fourier Transform (STFT) and Inverse STFT.
 
 Provides librosa-compatible STFT and ISTFT implementations for MLX.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -25,9 +26,7 @@ _WINDOW_SUM_EPSILON = 1e-8
 _padded_window_cache: dict[tuple, mx.array] = {}
 
 
-def _get_padded_window(
-    window: str | mx.array, win_length: int, n_fft: int
-) -> mx.array:
+def _get_padded_window(window: str | mx.array, win_length: int, n_fft: int) -> mx.array:
     """Get window, padding to n_fft if needed, with caching."""
     # Create cache key
     if isinstance(window, str):
@@ -54,9 +53,7 @@ def _get_padded_window(
 
 
 @lru_cache(maxsize=8)
-def _get_compiled_stft_fn(
-    n_fft: int, hop_length: int, center: bool, pad_mode: str
-):
+def _get_compiled_stft_fn(n_fft: int, hop_length: int, center: bool, pad_mode: str):
     """
     Get a compiled STFT function for the given parameters.
 
@@ -141,9 +138,7 @@ def stft(
     if win_length <= 0:
         raise ValueError(f"win_length must be positive, got {win_length}")
     if win_length > n_fft:
-        raise ValueError(
-            f"win_length ({win_length}) must be <= n_fft ({n_fft})"
-        )
+        raise ValueError(f"win_length ({win_length}) must be <= n_fft ({n_fft})")
     if hop_length > n_fft:
         raise ValueError(
             f"hop_length ({hop_length}) should typically be <= n_fft ({n_fft})"
@@ -218,9 +213,7 @@ def istft(
     """
     # Validate input dimensions
     if stft_matrix.ndim not in (2, 3):
-        raise ValueError(
-            f"stft_matrix must be 2D or 3D, got {stft_matrix.ndim}D"
-        )
+        raise ValueError(f"stft_matrix must be 2D or 3D, got {stft_matrix.ndim}D")
 
     # Handle batched input
     input_is_2d = stft_matrix.ndim == 2
@@ -270,7 +263,7 @@ def istft(
         if length is not None:
             # When length is specified, extract exactly 'length' samples
             # from the middle of the reconstructed signal
-            y = y[:, pad_length:pad_length + length]
+            y = y[:, pad_length : pad_length + length]
         else:
             # Without length, just trim the padding from both sides
             # Note: negative slice y[:, pad:-pad] doesn't work when empty
@@ -375,14 +368,11 @@ def check_nola(
     n_bins = n_fft // step
 
     # Sum squared windows for each position within a hop
-    binsums = sum(
-        win_np[ii * step:(ii + 1) * step] ** 2
-        for ii in range(n_bins)
-    )
+    binsums = sum(win_np[ii * step : (ii + 1) * step] ** 2 for ii in range(n_bins))
 
     # Handle remainder if n_fft is not a multiple of hop_length
     if n_fft % step != 0:
-        binsums[:n_fft % step] += win_np[-(n_fft % step):] ** 2
+        binsums[: n_fft % step] += win_np[-(n_fft % step) :] ** 2
 
     return bool(np.min(binsums) > tol)
 
@@ -413,7 +403,7 @@ def _pad_signal(y: mx.array, pad_length: int, mode: str) -> mx.array:
         # Right reflection (excluding the edge element, reversed)
         if pad_length > 0:
             # y[:, -pad_length-1:-1] then reverse -> y[:, -2:-pad_length-2:-1]
-            right_pad = y[:, -2:-pad_length - 2:-1]
+            right_pad = y[:, -2 : -pad_length - 2 : -1]
         else:
             right_pad = y[:, :0]  # Empty slice
 
@@ -475,7 +465,7 @@ def _frame_signal(y: mx.array, n_fft: int, hop_length: int) -> mx.array:
     # This is significantly faster as it's just a metadata operation.
 
     # Check if we can use strided view (MLX >= 0.5 has as_strided)
-    if hasattr(mx, 'as_strided'):
+    if hasattr(mx, "as_strided"):
         # Use strided view for zero-copy framing
         # For batched signals, we need to handle each batch
         # y shape: (batch, signal_length) -> frames: (batch, n_frames, n_fft)
@@ -603,6 +593,7 @@ _FUSED_OVERLAP_ADD_SOURCE = """
     int out_flat_idx = batch_idx * output_length + out_idx;
     output[out_flat_idx] = sum / fmax(win_sq_sum, 1e-8f);
 """
+
 
 @lru_cache(maxsize=8)
 def _get_fused_overlap_add_kernel() -> Any:

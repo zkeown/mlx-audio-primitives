@@ -7,6 +7,7 @@ sample rates.
 Note: FFT operations in MLX run on CPU, so resampling very long signals
 may benefit from pre-processing with librosa/scipy on the host.
 """
+
 from __future__ import annotations
 
 import math
@@ -77,9 +78,7 @@ def resample(
     elif res_type == "linear":
         return _resample_linear(y, orig_sr, target_sr, fix, scale, axis)
     else:
-        raise ValueError(
-            f"Unknown res_type: '{res_type}'. Supported: 'fft', 'linear'"
-        )
+        raise ValueError(f"Unknown res_type: '{res_type}'. Supported: 'fft', 'linear'")
 
 
 def _resample_fft(
@@ -278,6 +277,7 @@ def resample_poly(
 
     try:
         from scipy.signal import resample_poly as scipy_resample_poly
+
         y_resampled = scipy_resample_poly(y_np, up, down, axis=-1, padtype=padtype)
     except ImportError:
         # Fallback to simple implementation

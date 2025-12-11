@@ -14,6 +14,7 @@ Tolerance: rtol=1e-5, atol=1e-5 (simple arithmetic operations)
 
 Note: frame() returns (n_frames, frame_length), transposed from librosa convention.
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -34,9 +35,7 @@ class TestFrame:
         expected = librosa.util.frame(random_signal, frame_length=2048, hop_length=512)
         expected = expected.T  # Transpose to match our convention
 
-        np.testing.assert_allclose(
-            np.array(frames), expected, rtol=1e-5, atol=1e-5
-        )
+        np.testing.assert_allclose(np.array(frames), expected, rtol=1e-5, atol=1e-5)
 
     @pytest.mark.parametrize("frame_length", [512, 1024, 2048])
     @pytest.mark.parametrize("hop_length", [128, 256, 512])
@@ -45,12 +44,12 @@ class TestFrame:
         y_mx = mx.array(random_signal)
         frames = frame(y_mx, frame_length=frame_length, hop_length=hop_length)
 
-        expected = librosa.util.frame(random_signal, frame_length=frame_length, hop_length=hop_length)
+        expected = librosa.util.frame(
+            random_signal, frame_length=frame_length, hop_length=hop_length
+        )
         expected = expected.T
 
-        np.testing.assert_allclose(
-            np.array(frames), expected, rtol=1e-5, atol=1e-5
-        )
+        np.testing.assert_allclose(np.array(frames), expected, rtol=1e-5, atol=1e-5)
 
     def test_output_shape(self, random_signal):
         """Test output shape is correct."""
@@ -94,11 +93,11 @@ class TestRMS:
         y_mx = mx.array(random_signal)
         result = rms(y_mx, frame_length=2048, hop_length=512)
 
-        expected = librosa.feature.rms(y=random_signal, frame_length=2048, hop_length=512)
-
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
+        expected = librosa.feature.rms(
+            y=random_signal, frame_length=2048, hop_length=512
         )
+
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     @pytest.mark.parametrize("frame_length", [512, 1024, 2048])
     @pytest.mark.parametrize("hop_length", [128, 256, 512])
@@ -107,11 +106,11 @@ class TestRMS:
         y_mx = mx.array(random_signal)
         result = rms(y_mx, frame_length=frame_length, hop_length=hop_length)
 
-        expected = librosa.feature.rms(y=random_signal, frame_length=frame_length, hop_length=hop_length)
-
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
+        expected = librosa.feature.rms(
+            y=random_signal, frame_length=frame_length, hop_length=hop_length
         )
+
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_output_shape(self, random_signal):
         """Test output shape matches librosa convention."""
@@ -147,9 +146,7 @@ class TestPreemphasis:
 
         expected = librosa.effects.preemphasis(random_signal, coef=0.97)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-5, atol=1e-5
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-5, atol=1e-5)
 
     @pytest.mark.parametrize("coef", [0.0, 0.5, 0.95, 0.97, 1.0])
     def test_various_coef(self, random_signal, coef):
@@ -159,9 +156,7 @@ class TestPreemphasis:
 
         expected = librosa.effects.preemphasis(random_signal, coef=coef)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-5, atol=1e-5
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-5, atol=1e-5)
 
     def test_output_shape(self, random_signal):
         """Test output shape matches input."""
@@ -198,9 +193,7 @@ class TestDeemphasis:
 
         expected = librosa.effects.deemphasis(random_signal, coef=0.97)
 
-        np.testing.assert_allclose(
-            np.array(result), expected, rtol=1e-4, atol=1e-4
-        )
+        np.testing.assert_allclose(np.array(result), expected, rtol=1e-4, atol=1e-4)
 
     def test_round_trip(self, random_signal):
         """Test that preemphasis -> deemphasis recovers original."""

@@ -4,6 +4,7 @@ Cross-validation tests against torchaudio.
 These tests compare our implementations against PyTorch's torchaudio
 to provide independent verification beyond librosa/scipy.
 """
+
 import mlx.core as mx
 import numpy as np
 import pytest
@@ -32,15 +33,20 @@ class TestSTFTCrossValidation:
 
         # Our implementation
         x_mlx = mx.array(x)
-        mlx_result = np.array(stft(x_mlx, n_fft=n_fft, hop_length=hop_length,
-                                    center=False))
+        mlx_result = np.array(
+            stft(x_mlx, n_fft=n_fft, hop_length=hop_length, center=False)
+        )
 
         # torchaudio
         x_torch = torch.from_numpy(x)
         window = torch.hann_window(n_fft)
         torch_result = torch.stft(
-            x_torch, n_fft=n_fft, hop_length=hop_length,
-            window=window, center=False, return_complex=True
+            x_torch,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=window,
+            center=False,
+            return_complex=True,
         ).numpy()
 
         # Tolerance for cross-library comparison
@@ -54,14 +60,19 @@ class TestSTFTCrossValidation:
         hop_length = n_fft // 4
 
         x_mlx = mx.array(x)
-        mlx_result = np.array(stft(x_mlx, n_fft=n_fft, hop_length=hop_length,
-                                    center=False))
+        mlx_result = np.array(
+            stft(x_mlx, n_fft=n_fft, hop_length=hop_length, center=False)
+        )
 
         x_torch = torch.from_numpy(x)
         window = torch.hann_window(n_fft)
         torch_result = torch.stft(
-            x_torch, n_fft=n_fft, hop_length=hop_length,
-            window=window, center=False, return_complex=True
+            x_torch,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=window,
+            center=False,
+            return_complex=True,
         ).numpy()
 
         np.testing.assert_allclose(mlx_result, torch_result, rtol=1e-4, atol=1e-4)
@@ -83,8 +94,12 @@ class TestSTFTCrossValidation:
         x_torch = torch.from_numpy(x)
         window = torch.hann_window(n_fft)
         torch_stft = torch.stft(
-            x_torch, n_fft=n_fft, hop_length=hop_length,
-            window=window, center=False, return_complex=True
+            x_torch,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=window,
+            center=False,
+            return_complex=True,
         )
         torch_mag = torch.abs(torch_stft).numpy()
 
@@ -143,10 +158,17 @@ class TestMelSpectrogramCrossValidation:
 
         # Our implementation
         x_mlx = mx.array(x)
-        mlx_mel = np.array(melspectrogram(
-            x_mlx, sr=sr, n_fft=n_fft, hop_length=hop_length,
-            n_mels=n_mels, power=2.0, center=False
-        ))
+        mlx_mel = np.array(
+            melspectrogram(
+                x_mlx,
+                sr=sr,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                n_mels=n_mels,
+                power=2.0,
+                center=False,
+            )
+        )
 
         # torchaudio
         mel_transform = torchaudio.transforms.MelSpectrogram(
@@ -156,8 +178,8 @@ class TestMelSpectrogramCrossValidation:
             n_mels=n_mels,
             power=2.0,
             center=False,
-            norm='slaney',
-            mel_scale='slaney',
+            norm="slaney",
+            mel_scale="slaney",
         )
         x_torch = torch.from_numpy(x)
         torch_mel = mel_transform(x_torch).numpy()
@@ -179,6 +201,7 @@ class TestWindowSymmetryFixed:
         Verify that MLX windows are now perfectly symmetric like scipy.
         """
         import scipy.signal
+
         n = 1024
 
         # MLX now computes in float64, casts to float32
@@ -269,12 +292,20 @@ class TestSTFTRoundTrip:
         x_torch = torch.from_numpy(x)
         window = torch.hann_window(n_fft)
         S_torch = torch.stft(
-            x_torch, n_fft=n_fft, hop_length=hop_length,
-            window=window, center=True, return_complex=True
+            x_torch,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=window,
+            center=True,
+            return_complex=True,
         )
         x_reconstructed_torch = torch.istft(
-            S_torch, n_fft=n_fft, hop_length=hop_length,
-            window=window, center=True, length=len(x)
+            S_torch,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=window,
+            center=True,
+            length=len(x),
         ).numpy()
 
         # Both should reconstruct well
@@ -286,5 +317,6 @@ class TestSTFTRoundTrip:
 
         # Errors should be similar magnitude
         error_ratio = mlx_error / max(torch_error, 1e-10)
-        assert 0.1 < error_ratio < 10, \
+        assert 0.1 < error_ratio < 10, (
             f"MLX/torch error ratio {error_ratio} indicates quality difference"
+        )

@@ -3,6 +3,7 @@ Window functions for audio signal processing.
 
 Provides window functions compatible with librosa/scipy conventions.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -175,8 +176,7 @@ def _get_window_cached(
     if window_func is None:
         supported = sorted(set(_WINDOW_FUNCTIONS.keys()))
         raise ValueError(
-            f"Unknown window type: '{window_name}'. "
-            f"Supported: {', '.join(supported)}"
+            f"Unknown window type: '{window_name}'. Supported: {', '.join(supported)}"
         )
     w = window_func(n)
 
@@ -234,15 +234,12 @@ def get_window(
     if isinstance(window, mx.array):
         if window.shape[0] != n_fft:
             raise ValueError(
-                f"Window array length ({window.shape[0]}) "
-                f"must match n_fft ({n_fft})"
+                f"Window array length ({window.shape[0]}) must match n_fft ({n_fft})"
             )
         return window.astype(mx.float32)
 
     if not isinstance(window, str):
-        raise TypeError(
-            f"window must be str or mx.array, got {type(window).__name__}"
-        )
+        raise TypeError(f"window must be str or mx.array, got {type(window).__name__}")
 
     # Check MLX cache first (avoids CPU→GPU transfer)
     cache_key = (window.lower(), n_fft, fftbins)

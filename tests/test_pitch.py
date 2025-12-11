@@ -14,6 +14,7 @@ Tolerance: Pitch within 5% of ground truth (peak detection variance)
 Algorithm: autocorrelation -> find peak in valid lag range -> f0 = sr / lag
 The periodicity value indicates confidence (0 = noise, 1 = perfectly periodic).
 """
+
 import mlx.core as mx
 import numpy as np
 
@@ -131,8 +132,7 @@ class TestPitchDetectACF:
 
         y_mx = mx.array(y)
         f0, voiced = pitch_detect_acf(
-            y_mx, sr=sr, fmin=80, fmax=1000,
-            frame_length=2048, hop_length=512
+            y_mx, sr=sr, fmin=80, fmax=1000, frame_length=2048, hop_length=512
         )
 
         f0_np = np.array(f0)
@@ -183,9 +183,7 @@ class TestPitchDetectACF:
     def test_output_shape(self, random_signal):
         """Test output shapes."""
         y_mx = mx.array(random_signal)
-        f0, voiced = pitch_detect_acf(
-            y_mx, sr=22050, frame_length=2048, hop_length=512
-        )
+        f0, voiced = pitch_detect_acf(y_mx, sr=22050, frame_length=2048, hop_length=512)
 
         # f0 and voiced should have same shape
         assert np.array(f0).shape == np.array(voiced).shape
@@ -207,14 +205,10 @@ class TestPitchDetectACF:
         y_mx = mx.array(y)
 
         # With fmin too high, shouldn't detect 150 Hz
-        f0_high_min, voiced_high = pitch_detect_acf(
-            y_mx, sr=sr, fmin=200, fmax=1000
-        )
+        f0_high_min, voiced_high = pitch_detect_acf(y_mx, sr=sr, fmin=200, fmax=1000)
 
         # With appropriate range, should detect
-        f0_good, voiced_good = pitch_detect_acf(
-            y_mx, sr=sr, fmin=80, fmax=500
-        )
+        f0_good, voiced_good = pitch_detect_acf(y_mx, sr=sr, fmin=80, fmax=500)
 
         # Good range should have more voiced frames
         assert np.mean(np.array(voiced_good)) >= np.mean(np.array(voiced_high))
@@ -306,9 +300,11 @@ class TestPitchMathematicalProperties:
         t = np.linspace(0, 0.5, int(sr * 0.5), dtype=np.float32)
 
         # Add harmonics
-        y = (np.sin(2 * np.pi * freq * t) +
-             0.5 * np.sin(2 * np.pi * 2 * freq * t) +
-             0.25 * np.sin(2 * np.pi * 3 * freq * t))
+        y = (
+            np.sin(2 * np.pi * freq * t)
+            + 0.5 * np.sin(2 * np.pi * 2 * freq * t)
+            + 0.25 * np.sin(2 * np.pi * 3 * freq * t)
+        )
         y = y.astype(np.float32)
 
         y_mx = mx.array(y)
@@ -331,7 +327,9 @@ class TestPitchMathematicalProperties:
         vibrato_depth = 20  # +/- 20 Hz
 
         t = np.linspace(0, 1, sr, dtype=np.float32)
-        freq_modulation = center_freq + vibrato_depth * np.sin(2 * np.pi * vibrato_rate * t)
+        freq_modulation = center_freq + vibrato_depth * np.sin(
+            2 * np.pi * vibrato_rate * t
+        )
         y = np.sin(2 * np.pi * np.cumsum(freq_modulation) / sr).astype(np.float32)
 
         y_mx = mx.array(y)

@@ -4,6 +4,7 @@ Mathematical property validation tests for mlx-audio-primitives.
 These tests verify mathematical invariants and properties that should hold
 for correct DSP implementations, providing confidence beyond reference comparison.
 """
+
 import librosa
 import mlx.core as mx
 import numpy as np
@@ -51,7 +52,7 @@ class TestParsevalsTheorem:
         x = np.random.randn(n).astype(np.float32)
 
         # Time domain energy
-        time_energy = np.sum(x ** 2)
+        time_energy = np.sum(x**2)
 
         # Frequency domain energy (rfft)
         x_mlx = mx.array(x)
@@ -61,7 +62,9 @@ class TestParsevalsTheorem:
         # For rfft, we need to account for the one-sided spectrum
         # DC and Nyquist are not doubled, middle frequencies are
         freq_energy = np.abs(X_np[0]) ** 2  # DC
-        freq_energy += 2 * np.sum(np.abs(X_np[1:-1]) ** 2)  # Middle frequencies (doubled)
+        freq_energy += 2 * np.sum(
+            np.abs(X_np[1:-1]) ** 2
+        )  # Middle frequencies (doubled)
         freq_energy += np.abs(X_np[-1]) ** 2  # Nyquist
         freq_energy /= n
 
@@ -91,8 +94,10 @@ class TestParsevalsTheorem:
 
         # Our energy should match librosa's energy closely
         np.testing.assert_allclose(
-            our_energy, librosa_energy, rtol=1e-4,
-            err_msg="STFT energy differs from librosa"
+            our_energy,
+            librosa_energy,
+            rtol=1e-4,
+            err_msg="STFT energy differs from librosa",
         )
 
     def test_parseval_round_trip_energy(self):
@@ -109,12 +114,14 @@ class TestParsevalsTheorem:
         x_reconstructed = istft(S, hop_length=hop_length, length=n)
         x_reconstructed_np = np.array(x_reconstructed)
 
-        original_energy = np.sum(x ** 2)
-        reconstructed_energy = np.sum(x_reconstructed_np ** 2)
+        original_energy = np.sum(x**2)
+        reconstructed_energy = np.sum(x_reconstructed_np**2)
 
         np.testing.assert_allclose(
-            original_energy, reconstructed_energy, rtol=1e-4,
-            err_msg="STFT round-trip should preserve energy"
+            original_energy,
+            reconstructed_energy,
+            rtol=1e-4,
+            err_msg="STFT round-trip should preserve energy",
         )
 
 
@@ -144,8 +151,11 @@ class TestSTFTLinearity:
         S_sum = S_x + S_y
 
         np.testing.assert_allclose(
-            np.array(S_xy), np.array(S_sum), rtol=1e-5, atol=1e-5,
-            err_msg="STFT should be linear: STFT(x+y) = STFT(x) + STFT(y)"
+            np.array(S_xy),
+            np.array(S_sum),
+            rtol=1e-5,
+            atol=1e-5,
+            err_msg="STFT should be linear: STFT(x+y) = STFT(x) + STFT(y)",
         )
 
     def test_stft_linearity_scaling(self):
@@ -165,8 +175,11 @@ class TestSTFTLinearity:
         S_ax = stft(ax_mlx, n_fft=n_fft, hop_length=hop_length)
 
         np.testing.assert_allclose(
-            np.array(S_ax), a * np.array(S_x), rtol=1e-5, atol=1e-5,
-            err_msg="STFT should be linear: STFT(ax) = a*STFT(x)"
+            np.array(S_ax),
+            a * np.array(S_x),
+            rtol=1e-5,
+            atol=1e-5,
+            err_msg="STFT should be linear: STFT(ax) = a*STFT(x)",
         )
 
     def test_stft_linearity_full(self):
@@ -191,8 +204,11 @@ class TestSTFTLinearity:
         S_expected = a * np.array(S_x) + b * np.array(S_y)
 
         np.testing.assert_allclose(
-            np.array(S_combined), S_expected, rtol=1e-5, atol=1e-5,
-            err_msg="STFT should satisfy full linearity"
+            np.array(S_combined),
+            S_expected,
+            rtol=1e-5,
+            atol=1e-5,
+            err_msg="STFT should satisfy full linearity",
         )
 
 
@@ -228,8 +244,9 @@ class TestPureToneAccuracy:
         expected_bin = int(round(frequency / freq_resolution))
 
         # Peak should be at expected bin (within 1 bin due to windowing)
-        assert abs(peak_bin - expected_bin) <= 1, \
+        assert abs(peak_bin - expected_bin) <= 1, (
             f"Pure tone at {frequency}Hz: peak at bin {peak_bin}, expected {expected_bin}"
+        )
 
     def test_pure_tone_magnitude_concentration(self):
         """Test that pure tone energy is concentrated near the tone frequency."""
@@ -254,12 +271,13 @@ class TestPureToneAccuracy:
         # Energy in peak region (peak +/- 3 bins)
         peak_region = slice(max(0, peak_bin - 3), min(len(avg_mag), peak_bin + 4))
         peak_energy = np.sum(avg_mag[peak_region] ** 2)
-        total_energy = np.sum(avg_mag ** 2)
+        total_energy = np.sum(avg_mag**2)
 
         # Most energy should be in peak region (>90%)
         concentration = peak_energy / total_energy
-        assert concentration > 0.9, \
+        assert concentration > 0.9, (
             f"Pure tone energy concentration {concentration:.2%} < 90%"
+        )
 
 
 class TestDCOffsetHandling:
@@ -286,8 +304,9 @@ class TestDCOffsetHandling:
         low_freq_magnitude = mag[1:10, :].mean()
 
         # DC should be larger (signal has DC offset)
-        assert dc_magnitude > low_freq_magnitude, \
+        assert dc_magnitude > low_freq_magnitude, (
             "DC offset should produce larger magnitude in bin 0"
+        )
 
     def test_dc_offset_round_trip(self):
         """Test that DC offset is preserved through STFT->ISTFT."""
@@ -305,8 +324,10 @@ class TestDCOffsetHandling:
 
         # Mean should be preserved
         np.testing.assert_allclose(
-            x_reconstructed_np.mean(), dc_offset, rtol=1e-3,
-            err_msg="DC offset should be preserved through STFT round-trip"
+            x_reconstructed_np.mean(),
+            dc_offset,
+            rtol=1e-3,
+            err_msg="DC offset should be preserved through STFT round-trip",
         )
 
 
@@ -395,8 +416,11 @@ class TestExtremeEdgeCases:
         x_reconstructed = istft(S, hop_length=hop_length, length=len(x))
 
         np.testing.assert_allclose(
-            np.array(x_reconstructed), x, rtol=1e-4, atol=1e-4,
-            err_msg=f"Round-trip failed for n_fft={n_fft}"
+            np.array(x_reconstructed),
+            x,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg=f"Round-trip failed for n_fft={n_fft}",
         )
 
 
@@ -451,8 +475,10 @@ class TestNumericalPrecision:
         x_clipped = np.maximum(x, 1e-10)
 
         np.testing.assert_allclose(
-            np.array(recovered), x_clipped, rtol=1e-5,
-            err_msg="dB round-trip lost precision"
+            np.array(recovered),
+            x_clipped,
+            rtol=1e-5,
+            err_msg="dB round-trip lost precision",
         )
 
     def test_mel_filterbank_sum_to_one(self):
@@ -517,7 +543,9 @@ class TestCrossValidationWithLibrosa:
 
         # Ratio of max to min shouldn't be extreme for white noise
         energy_ratio = band_energies.max() / band_energies.min()
-        assert energy_ratio < 100, f"Energy distribution too uneven: ratio={energy_ratio}"
+        assert energy_ratio < 100, (
+            f"Energy distribution too uneven: ratio={energy_ratio}"
+        )
 
     @pytest.mark.parametrize("window_type", ["hann", "hamming", "blackman"])
     def test_stft_window_comparison(self, window_type):
@@ -538,8 +566,11 @@ class TestCrossValidationWithLibrosa:
         actual = stft(x_mlx, n_fft=n_fft, hop_length=hop_length, window=window_type)
 
         np.testing.assert_allclose(
-            np.array(actual), expected, rtol=1e-4, atol=1e-4,
-            err_msg=f"STFT mismatch for window={window_type}"
+            np.array(actual),
+            expected,
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg=f"STFT mismatch for window={window_type}",
         )
 
     def test_mel_scale_monotonicity(self):
@@ -570,14 +601,16 @@ class TestCrossValidationWithLibrosa:
                 # Values before peak should increase
                 before_peak = filt[nonzero_idx[nonzero_idx < peak_idx]]
                 if len(before_peak) > 1:
-                    assert np.all(np.diff(before_peak) >= -1e-6), \
+                    assert np.all(np.diff(before_peak) >= -1e-6), (
                         f"Filter {i} not monotonically increasing before peak"
+                    )
 
                 # Values after peak should decrease
                 after_peak = filt[nonzero_idx[nonzero_idx > peak_idx]]
                 if len(after_peak) > 1:
-                    assert np.all(np.diff(after_peak) <= 1e-6), \
+                    assert np.all(np.diff(after_peak) <= 1e-6), (
                         f"Filter {i} not monotonically decreasing after peak"
+                    )
 
 
 class TestWindowProperties:
@@ -593,8 +626,11 @@ class TestWindowProperties:
         # Symmetric window should be perfectly symmetric
         # (computed in float64, cast to float32)
         np.testing.assert_allclose(
-            window_np, window_np[::-1], rtol=1e-7, atol=0,
-            err_msg=f"{window_type} window not symmetric"
+            window_np,
+            window_np[::-1],
+            rtol=1e-7,
+            atol=0,
+            err_msg=f"{window_type} window not symmetric",
         )
 
     @pytest.mark.parametrize("window_type", ["hann", "hamming", "blackman", "bartlett"])
@@ -622,8 +658,7 @@ class TestWindowProperties:
 
         # Windows should be non-negative (computed in float64)
         min_val = window_np.min()
-        assert min_val >= 0, \
-            f"{window_type} window has negative values: {min_val}"
+        assert min_val >= 0, f"{window_type} window has negative values: {min_val}"
 
     def test_periodic_window_differs_from_symmetric(self):
         """Test that periodic and symmetric windows differ correctly."""
@@ -636,8 +671,9 @@ class TestWindowProperties:
         symmetric_np = np.array(symmetric)
 
         # They should be different
-        assert not np.allclose(periodic_np, symmetric_np), \
+        assert not np.allclose(periodic_np, symmetric_np), (
             "Periodic and symmetric windows should differ"
+        )
 
         # Periodic window's last element should match symmetric's second-to-last
         # (because periodic is computed as symmetric[:-1] from n+1 points)
@@ -645,6 +681,8 @@ class TestWindowProperties:
         symmetric_n1_np = np.array(symmetric_n1)
 
         np.testing.assert_allclose(
-            periodic_np, symmetric_n1_np[:-1], rtol=1e-6,
-            err_msg="Periodic window doesn't match symmetric[:-1] from n+1"
+            periodic_np,
+            symmetric_n1_np[:-1],
+            rtol=1e-6,
+            err_msg="Periodic window doesn't match symmetric[:-1] from n+1",
         )

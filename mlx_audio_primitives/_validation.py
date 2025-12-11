@@ -3,6 +3,7 @@ Shared validation utilities for parameter checking.
 
 These utilities provide consistent error messages across the library.
 """
+
 from __future__ import annotations
 
 

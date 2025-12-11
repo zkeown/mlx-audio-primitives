@@ -161,6 +161,13 @@ def _preemphasis_mlx(
 
     This is a vectorized FIR filter: y_out[n] = y[n] - coef * y[n-1]
     Much faster than scipy.signal.lfilter as it avoids CPU<->GPU transfer.
+
+    The key insight is that scipy.signal.lfilter with zi adds zi directly
+    to the first output (it's the filter state, not the previous sample).
+    So: y_out[0] = y[0] + zi, y_out[n] = y[n] - coef * y[n-1] for n >= 1.
+
+    To match librosa's default zi = 2*y[0] - y[1], we compute:
+    y_out[0] = y[0] + zi = y[0] + (2*y[0] - y[1]) = 3*y[0] - y[1]
     """
     # Compute initial state (linear extrapolation to match librosa)
     if zi is None:
@@ -168,13 +175,17 @@ def _preemphasis_mlx(
     elif zi.ndim == 0:
         zi = zi[None]
 
-    # y_shifted = [zi, y[0], y[1], ..., y[n-2]]
-    y_shifted = mx.concatenate([zi, y[..., :-1]], axis=-1)
-
-    # y_out[n] = y[n] - coef * y[n-1]
+    # For n >= 1: y_out[n] = y[n] - coef * y[n-1]
+    # We compute this for all positions, then fix up position 0
+    y_shifted = mx.concatenate([y[..., 0:1], y[..., :-1]], axis=-1)
     y_out = y - coef * y_shifted
 
-    # Final state is the last sample
+    # Fix position 0: y_out[0] = y[0] + zi (scipy lfilter behavior)
+    # Currently y_out[0] = y[0] - coef * y[0], we need y[0] + zi
+    y_out_0 = y[..., 0:1] + zi
+    y_out = mx.concatenate([y_out_0, y_out[..., 1:]], axis=-1)
+
+    # Final state is the last sample (for streaming continuation)
     zf = y[..., -1:]
 
     return y_out, zf
@@ -185,7 +196,7 @@ def preemphasis(
     coef: float = 0.97,
     zi: mx.array | None = None,
     return_zf: bool = False,
-    use_mlx: bool = False,
+    use_mlx: bool = True,
 ) -> mx.array | tuple[mx.array, mx.array]:
     """
     Apply pre-emphasis filter to emphasize high frequencies.
@@ -204,9 +215,9 @@ def preemphasis(
         (zi = 2*y[0] - y[1]) to match librosa behavior.
     return_zf : bool, default=False
         If True, return the final filter state.
-    use_mlx : bool, default=False
-        If True, use MLX-native implementation (faster, slight numerical differences).
-        If False, use scipy.signal.lfilter (exact librosa compatibility).
+    use_mlx : bool, default=True
+        If True, use MLX-native implementation (faster, matches librosa exactly).
+        If False, use scipy.signal.lfilter.
 
     Returns
     -------

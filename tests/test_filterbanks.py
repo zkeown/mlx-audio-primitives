@@ -14,15 +14,15 @@ Tolerance: rtol=1e-5, atol=1e-5 (direct computation, no FFT)
 Note: Bark scale approximates critical bands of human hearing.
 Formula: bark = 6 * arcsinh(f / 600) (Traunmuller, 1990)
 """
+import mlx.core as mx
 import numpy as np
 import pytest
-import mlx.core as mx
 
 from mlx_audio_primitives import (
-    linear_filterbank,
     bark_filterbank,
-    hz_to_bark,
     bark_to_hz,
+    hz_to_bark,
+    linear_filterbank,
     mel_filterbank,
 )
 

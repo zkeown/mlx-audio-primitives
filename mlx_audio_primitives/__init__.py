@@ -100,12 +100,63 @@ from .convert import (
     power_to_db,
 )
 
+# Spectral features
+from .features import (
+    spectral_bandwidth,
+    spectral_centroid,
+    spectral_contrast,
+    spectral_flatness,
+    spectral_rolloff,
+    zero_crossing_rate,
+)
+
+# Filterbanks (linear and Bark scale)
+from .filterbanks import (
+    bark_filterbank,
+    bark_to_hz,
+    hz_to_bark,
+    linear_filterbank,
+)
+
+# Time-domain primitives
+from .framing import (
+    deemphasis,
+    frame,
+    preemphasis,
+    rms,
+)
+
+# Phase reconstruction
+from .griffinlim import (
+    griffinlim,
+)
+
 # Mel-scale operations
 from .mel import (
     hz_to_mel,
     mel_filterbank,
     mel_to_hz,
     melspectrogram,
+)
+
+# MFCC and delta
+from .mfcc import (
+    dct,
+    delta,
+    mfcc,
+)
+
+# Pitch and periodicity
+from .pitch import (
+    autocorrelation,
+    periodicity,
+    pitch_detect_acf,
+)
+
+# Resampling
+from .resample import (
+    resample,
+    resample_poly,
 )
 
 # Core STFT operations
@@ -119,57 +170,6 @@ from .stft import (
 
 # Window functions
 from .windows import get_window
-
-# Filterbanks (linear and Bark scale)
-from .filterbanks import (
-    bark_filterbank,
-    bark_to_hz,
-    hz_to_bark,
-    linear_filterbank,
-)
-
-# Spectral features
-from .features import (
-    spectral_bandwidth,
-    spectral_centroid,
-    spectral_contrast,
-    spectral_flatness,
-    spectral_rolloff,
-    zero_crossing_rate,
-)
-
-# MFCC and delta
-from .mfcc import (
-    dct,
-    delta,
-    mfcc,
-)
-
-# Time-domain primitives
-from .framing import (
-    deemphasis,
-    frame,
-    preemphasis,
-    rms,
-)
-
-# Resampling
-from .resample import (
-    resample,
-    resample_poly,
-)
-
-# Phase reconstruction
-from .griffinlim import (
-    griffinlim,
-)
-
-# Pitch and periodicity
-from .pitch import (
-    autocorrelation,
-    periodicity,
-    pitch_detect_acf,
-)
 
 __all__ = [
     # Version

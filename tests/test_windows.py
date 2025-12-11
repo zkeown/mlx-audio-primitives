@@ -9,10 +9,10 @@ Tests cover:
 - Shape and dtype validation
 - Error handling for unknown window types
 """
+import mlx.core as mx
 import numpy as np
 import pytest
 import scipy.signal
-import mlx.core as mx
 
 from mlx_audio_primitives import get_window
 

@@ -15,7 +15,6 @@ from ._validation import validate_positive
 from .convert import power_to_db
 from .mel import melspectrogram
 
-
 # Secondary cache for MLX DCT matrices (avoids CPU→GPU transfer on repeated access)
 _mlx_dct_cache: dict[tuple, mx.array] = {}
 

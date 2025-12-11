@@ -4,19 +4,18 @@ Cross-validation tests against torchaudio.
 These tests compare our implementations against PyTorch's torchaudio
 to provide independent verification beyond librosa/scipy.
 """
+import mlx.core as mx
 import numpy as np
 import pytest
 import torch
 import torchaudio
-import mlx.core as mx
 
 from mlx_audio_primitives import (
-    stft,
+    get_window,
     istft,
     magnitude,
-    mel_filterbank,
     melspectrogram,
-    get_window,
+    stft,
 )
 
 
@@ -193,7 +192,7 @@ class TestWindowSymmetryFixed:
 
         # Both should be perfectly symmetric
         assert mlx_asymmetry == 0, f"MLX should be symmetric, got {mlx_asymmetry}"
-        assert scipy_asymmetry == 0, f"Scipy should be symmetric"
+        assert scipy_asymmetry == 0, "Scipy should be symmetric"
 
         # MLX should match scipy very closely (within float32 epsilon)
         # Note: Exact bitwise match is not guaranteed due to different computation order,
@@ -217,7 +216,7 @@ class TestWindowSymmetryFixed:
         torch_asymmetry = np.max(np.abs(torch_hann - torch_hann[::-1]))
 
         # MLX should be perfectly symmetric now
-        assert mlx_asymmetry == 0, f"MLX should be symmetric"
+        assert mlx_asymmetry == 0, "MLX should be symmetric"
 
         # PyTorch still has asymmetry (computes in float32)
         assert torch_asymmetry > 0, "PyTorch should have some asymmetry"

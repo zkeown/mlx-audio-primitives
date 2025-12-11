@@ -14,12 +14,12 @@ Tolerance: rtol=1e-5, atol=1e-5 (simple arithmetic operations)
 
 Note: frame() returns (n_frames, frame_length), transposed from librosa convention.
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
-from mlx_audio_primitives import frame, rms, preemphasis, deemphasis
+from mlx_audio_primitives import deemphasis, frame, preemphasis, rms
 
 
 class TestFrame:

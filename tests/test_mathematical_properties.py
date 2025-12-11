@@ -4,26 +4,22 @@ Mathematical property validation tests for mlx-audio-primitives.
 These tests verify mathematical invariants and properties that should hold
 for correct DSP implementations, providing confidence beyond reference comparison.
 """
+import librosa
+import mlx.core as mx
 import numpy as np
 import pytest
-import librosa
-import scipy.signal
-import mlx.core as mx
 
 from mlx_audio_primitives import (
-    stft,
+    db_to_power,
+    get_window,
+    hz_to_mel,
     istft,
     magnitude,
-    phase,
     mel_filterbank,
     melspectrogram,
-    hz_to_mel,
-    mel_to_hz,
+    phase,
     power_to_db,
-    db_to_power,
-    amplitude_to_db,
-    db_to_amplitude,
-    get_window,
+    stft,
 )
 
 # Test tolerance constants

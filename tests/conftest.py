@@ -4,7 +4,6 @@ Pytest configuration and shared fixtures for mlx-audio-primitives tests.
 import numpy as np
 import pytest
 
-
 # Use np.random.Generator for better test isolation instead of global seed
 _TEST_SEED = 42
 
@@ -55,7 +54,8 @@ def sine_signal():
 def spectrogram(random_signal):
     """Pre-computed magnitude spectrogram."""
     import mlx.core as mx
-    from mlx_audio_primitives import stft, magnitude
+
+    from mlx_audio_primitives import magnitude, stft
 
     y_mx = mx.array(random_signal)
     S = stft(y_mx, n_fft=2048, hop_length=512)
@@ -66,6 +66,7 @@ def spectrogram(random_signal):
 def mel_spec(random_signal):
     """Pre-computed mel spectrogram."""
     import mlx.core as mx
+
     from mlx_audio_primitives import melspectrogram
 
     y_mx = mx.array(random_signal)

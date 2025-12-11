@@ -13,12 +13,12 @@ Cross-references:
 - Mathematical properties: test_mathematical_properties.py
 - PyTorch validation: test_torchaudio_crossval.py
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
-from mlx_audio_primitives import stft, istft, magnitude, phase, check_nola
+from mlx_audio_primitives import check_nola, istft, magnitude, phase, stft
 
 
 class TestSTFT:

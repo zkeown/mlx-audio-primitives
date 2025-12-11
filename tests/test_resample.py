@@ -15,10 +15,10 @@ Tolerance: rtol=1e-4, atol=1e-4 (FFT-based resampling differences)
 Note: resample() uses scipy.signal.resample (FFT method).
 resample_poly() uses scipy.signal.resample_poly (polyphase FIR method).
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
 from mlx_audio_primitives import resample, resample_poly
 
@@ -83,7 +83,7 @@ class TestResample:
         y_mx = mx.array(random_signal)
         result = resample(y_mx, orig_sr=orig_sr, target_sr=target_sr)
 
-        expected = librosa.resample(random_signal, orig_sr=orig_sr, target_sr=target_sr)
+        librosa.resample(random_signal, orig_sr=orig_sr, target_sr=target_sr)
 
         # Check length is approximately correct
         expected_length = int(np.round(len(random_signal) * target_sr / orig_sr))

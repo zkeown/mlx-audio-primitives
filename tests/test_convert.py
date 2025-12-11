@@ -9,18 +9,17 @@ Tests cover:
 - top_db dynamic range clipping
 - Custom amin (amplitude minimum) handling
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
 
 from mlx_audio_primitives import (
-    power_to_db,
-    db_to_power,
     amplitude_to_db,
     db_to_amplitude,
-    stft,
+    db_to_power,
     magnitude,
+    power_to_db,
+    stft,
 )
 
 

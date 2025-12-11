@@ -14,7 +14,6 @@ import math
 import mlx.core as mx
 import numpy as np
 
-from ._extension import HAS_CPP_EXT, _ext
 from ._validation import validate_positive
 
 

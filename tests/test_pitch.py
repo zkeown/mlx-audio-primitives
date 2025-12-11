@@ -14,11 +14,10 @@ Tolerance: Pitch within 5% of ground truth (peak detection variance)
 Algorithm: autocorrelation -> find peak in valid lag range -> f0 = sr / lag
 The periodicity value indicates confidence (0 = noise, 1 = perfectly periodic).
 """
-import numpy as np
-import pytest
 import mlx.core as mx
+import numpy as np
 
-from mlx_audio_primitives import autocorrelation, pitch_detect_acf, periodicity
+from mlx_audio_primitives import autocorrelation, periodicity, pitch_detect_acf
 
 
 class TestAutocorrelation:
@@ -90,7 +89,7 @@ class TestAutocorrelation:
         y_mx = mx.array(random_signal)
 
         result_norm = autocorrelation(y_mx, normalize=True)
-        result_unnorm = autocorrelation(y_mx, normalize=False)
+        autocorrelation(y_mx, normalize=False)
 
         # Normalized: r[0] = 1
         assert np.isclose(np.array(result_norm)[0], 1.0, rtol=1e-5)

@@ -13,12 +13,12 @@ Cross-references:
 - Mathematical properties: test_mathematical_properties.py
 - PyTorch validation: test_torchaudio_crossval.py
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
-from mlx_audio_primitives import mel_filterbank, melspectrogram, hz_to_mel, mel_to_hz
+from mlx_audio_primitives import hz_to_mel, mel_filterbank, mel_to_hz, melspectrogram
 
 
 class TestMelScale:
@@ -184,7 +184,7 @@ class TestMelspectrogram:
         result = melspectrogram(y_mlx, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
 
         # Expected shape: (n_mels, n_frames)
-        n_frames = 1 + (len(random_signal) + n_fft // 2 * 2 - n_fft) // hop_length
+        1 + (len(random_signal) + n_fft // 2 * 2 - n_fft) // hop_length
         assert result.shape[0] == n_mels
         # n_frames may vary slightly due to padding
 

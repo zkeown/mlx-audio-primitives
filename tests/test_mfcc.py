@@ -14,12 +14,12 @@ Tolerance: rtol=1e-4, atol=1e-4 (DCT and log operations)
 
 Pipeline: audio -> mel spectrogram -> log -> DCT -> (optional lifter)
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
-from mlx_audio_primitives import mfcc, delta, dct, melspectrogram, power_to_db
+from mlx_audio_primitives import dct, delta, mfcc
 
 
 class TestMFCC:

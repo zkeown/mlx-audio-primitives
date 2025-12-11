@@ -13,20 +13,20 @@ Tolerance: rtol=1e-4, atol=1e-4 (log operations and FFT differences)
 Note: spectral_contrast and spectral_rolloff use numpy internally for
 operations not supported natively in MLX (searchsorted, complex indexing).
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
 from mlx_audio_primitives import (
-    spectral_centroid,
-    spectral_bandwidth,
-    spectral_rolloff,
-    spectral_flatness,
-    spectral_contrast,
-    zero_crossing_rate,
-    stft,
     magnitude,
+    spectral_bandwidth,
+    spectral_centroid,
+    spectral_contrast,
+    spectral_flatness,
+    spectral_rolloff,
+    stft,
+    zero_crossing_rate,
 )
 
 

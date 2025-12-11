@@ -16,12 +16,12 @@ Note: Griffin-Lim cannot recover original phase - it finds a consistent
 phase that produces the given magnitude spectrogram. Quality improves
 with more iterations but with diminishing returns after ~32.
 """
-import numpy as np
-import pytest
 import librosa
 import mlx.core as mx
+import numpy as np
+import pytest
 
-from mlx_audio_primitives import griffinlim, stft, istft, magnitude
+from mlx_audio_primitives import griffinlim, magnitude, stft
 
 
 class TestGriffinLim:

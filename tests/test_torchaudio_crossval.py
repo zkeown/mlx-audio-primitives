@@ -163,17 +163,8 @@ class TestMelSpectrogramCrossValidation:
         x_torch = torch.from_numpy(x)
         torch_mel = mel_transform(x_torch).numpy()
 
-        # Mel spectrograms can have larger differences due to
-        # different mel filterbank implementations
-        # Check correlation instead of exact match
-        correlation = np.corrcoef(mlx_mel.flatten(), torch_mel.flatten())[0, 1]
-        assert correlation > 0.99, f"Mel spectrogram correlation {correlation} < 0.99"
-
-        # Also check relative magnitude
-        mlx_energy = np.sum(mlx_mel)
-        torch_energy = np.sum(torch_mel)
-        energy_ratio = mlx_energy / torch_energy
-        assert 0.9 < energy_ratio < 1.1, f"Energy ratio {energy_ratio} outside [0.9, 1.1]"
+        # Compare actual values with tight tolerances
+        np.testing.assert_allclose(mlx_mel, torch_mel, rtol=1e-3, atol=1e-5)
 
 
 class TestWindowSymmetryFixed:
@@ -204,9 +195,11 @@ class TestWindowSymmetryFixed:
         assert mlx_asymmetry == 0, f"MLX should be symmetric, got {mlx_asymmetry}"
         assert scipy_asymmetry == 0, f"Scipy should be symmetric"
 
-        # MLX should match scipy exactly
+        # MLX should match scipy very closely (within float32 epsilon)
+        # Note: Exact bitwise match is not guaranteed due to different computation order,
+        # but both use float64 internally so the difference should be minimal
         max_diff = np.max(np.abs(mlx_hann - scipy_hann_32))
-        assert max_diff == 0, f"MLX should match scipy exactly, diff={max_diff}"
+        assert max_diff < 2e-7, f"MLX should match scipy closely, diff={max_diff}"
 
     def test_mlx_more_precise_than_torch(self):
         """

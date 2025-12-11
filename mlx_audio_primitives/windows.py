@@ -6,10 +6,129 @@ Provides window functions compatible with librosa/scipy conventions.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Tuple, Union
+from typing import Callable, Dict, Tuple, Union
 
 import numpy as np
 import mlx.core as mx
+
+# Import C++ extension with graceful fallback
+from ._extension import _ext, HAS_CPP_EXT
+
+
+# =============================================================================
+# Window function implementations (private)
+# =============================================================================
+
+
+def _generalized_cosine_window(
+    n: int,
+    coefficients: tuple,
+    clamp_non_negative: bool = False,
+) -> mx.array:
+    """
+    Generalized cosine window with arbitrary coefficients.
+
+    w[k] = a0 - a1*cos(2*pi*k/(n-1)) + a2*cos(4*pi*k/(n-1)) - ...
+
+    Parameters
+    ----------
+    n : int
+        Window length.
+    coefficients : tuple
+        Tuple of (a0, a1, a2, ...) coefficients.
+    clamp_non_negative : bool
+        If True, clamp window values to be non-negative.
+
+    Computed in float64 for precision, then cast to float32.
+    This ensures perfect symmetry matching scipy.
+    """
+    if n <= 1:
+        return mx.ones(n, dtype=mx.float32)
+
+    k = np.arange(n, dtype=np.float64)
+    denom = n - 1
+
+    # Start with a0
+    window = np.full(n, coefficients[0], dtype=np.float64)
+
+    # Add cosine terms with alternating signs
+    for i, coef in enumerate(coefficients[1:], 1):
+        sign = -1 if i % 2 == 1 else 1
+        window = window + sign * coef * np.cos(2 * i * np.pi * k / denom)
+
+    if clamp_non_negative:
+        window = np.maximum(window, 0.0)
+
+    return mx.array(window.astype(np.float32))
+
+
+# Window coefficient definitions for generalized cosine windows
+# Format: (a0, a1, a2, ...) where w[k] = a0 - a1*cos(...) + a2*cos(...) - ...
+_COSINE_WINDOW_COEFFICIENTS = {
+    "hann": (0.5, 0.5),
+    "hamming": (0.54, 0.46),
+    "blackman": (0.42, 0.5, 0.08),
+}
+
+
+def _hann(n: int) -> mx.array:
+    """Hann (raised cosine) window: w[k] = 0.5 - 0.5 * cos(2*pi*k/(n-1))"""
+    return _generalized_cosine_window(n, _COSINE_WINDOW_COEFFICIENTS["hann"])
+
+
+def _hamming(n: int) -> mx.array:
+    """Hamming window: w[k] = 0.54 - 0.46 * cos(2*pi*k/(n-1))"""
+    return _generalized_cosine_window(n, _COSINE_WINDOW_COEFFICIENTS["hamming"])
+
+
+def _blackman(n: int) -> mx.array:
+    """
+    Blackman window: w[k] = 0.42 - 0.5*cos(2*pi*k/(n-1)) + 0.08*cos(4*pi*k/(n-1))
+
+    Note: Clamped to non-negative since floating-point can produce tiny negative
+    values (~1e-17) at endpoints where theoretical value is exactly 0.
+    """
+    return _generalized_cosine_window(
+        n, _COSINE_WINDOW_COEFFICIENTS["blackman"], clamp_non_negative=True
+    )
+
+
+def _bartlett(n: int) -> mx.array:
+    """
+    Bartlett (triangular) window: w[k] = 1 - |2*k/(n-1) - 1|
+
+    Computed in float64 for precision, then cast to float32.
+    """
+    if n <= 1:
+        return mx.ones(n, dtype=mx.float32)
+
+    k = np.arange(n, dtype=np.float64)
+    window = 1 - np.abs(2 * k / (n - 1) - 1)
+    return mx.array(window.astype(np.float32))
+
+
+def _rectangular(n: int) -> mx.array:
+    """Rectangular (boxcar) window - all ones."""
+    return mx.ones(n, dtype=mx.float32)
+
+
+# Window function dispatch table for cleaner lookup
+_WINDOW_FUNCTIONS: Dict[str, Callable[[int], mx.array]] = {
+    "hann": _hann,
+    "hanning": _hann,  # Alias
+    "hamming": _hamming,
+    "blackman": _blackman,
+    "bartlett": _bartlett,
+    "triangular": _bartlett,  # Alias
+    "rectangular": _rectangular,
+    "boxcar": _rectangular,  # Alias
+    "ones": _rectangular,  # Alias
+}
+
+
+# =============================================================================
+# Public API
+# =============================================================================
 
 
 @lru_cache(maxsize=64)
@@ -25,6 +144,22 @@ def _get_window_cached(
     """
     window_name = window_name.lower()
 
+    # Use C++ extension if available
+    if HAS_CPP_EXT and _ext is not None:
+        # Map window names to C++ expected names
+        cpp_name = window_name
+        if window_name == "hanning":
+            cpp_name = "hann"
+        elif window_name == "triangular":
+            cpp_name = "bartlett"
+        elif window_name in ("boxcar", "ones"):
+            cpp_name = "rectangular"
+
+        w = _ext.generate_window(cpp_name, n_fft, fftbins)
+        w_np = np.array(w, dtype=np.float32)
+        return w_np.tobytes(), len(w_np)
+
+    # Fallback to Python/NumPy implementation
     # For periodic (fftbins=True), we compute n_fft+1 points and drop the last
     # This matches scipy/librosa behavior for DFT-even windows
     if fftbins:
@@ -32,21 +167,15 @@ def _get_window_cached(
     else:
         n = n_fft
 
-    if window_name in ("hann", "hanning"):
-        w = _hann(n)
-    elif window_name == "hamming":
-        w = _hamming(n)
-    elif window_name == "blackman":
-        w = _blackman(n)
-    elif window_name in ("bartlett", "triangular"):
-        w = _bartlett(n)
-    elif window_name in ("rectangular", "boxcar", "ones"):
-        w = mx.ones(n, dtype=mx.float32)
-    else:
+    # Use dispatch table for window function lookup
+    window_func = _WINDOW_FUNCTIONS.get(window_name)
+    if window_func is None:
+        supported = sorted(set(_WINDOW_FUNCTIONS.keys()))
         raise ValueError(
             f"Unknown window type: '{window_name}'. "
-            f"Supported: hann, hamming, blackman, bartlett, rectangular"
+            f"Supported: {', '.join(supported)}"
         )
+    w = window_func(n)
 
     # For periodic windows, drop the last sample
     if fftbins and n > n_fft:
@@ -74,7 +203,7 @@ def get_window(
         - 'hann' or 'hanning': Hann window
         - 'hamming': Hamming window
         - 'blackman': Blackman window
-        - 'bartlett': Bartlett (triangular) window
+        - 'bartlett' or 'triangular': Bartlett (triangular) window
         - 'rectangular' or 'boxcar' or 'ones': Rectangular window (all ones)
         If mx.array, used directly (must have length n_fft).
     n_fft : int
@@ -118,81 +247,3 @@ def get_window(
     # Convert from bytes back to MLX array
     w = np.frombuffer(window_bytes, dtype=np.float32)
     return mx.array(w)
-
-
-def _hann(n: int) -> mx.array:
-    """
-    Hann (raised cosine) window.
-
-    w[k] = 0.5 - 0.5 * cos(2 * pi * k / (n - 1))
-
-    Computed in float64 for precision, then cast to float32.
-    This ensures perfect symmetry matching scipy.
-    """
-    if n <= 1:
-        return mx.ones(n, dtype=mx.float32)
-
-    k = np.arange(n, dtype=np.float64)
-    window = 0.5 - 0.5 * np.cos(2 * np.pi * k / (n - 1))
-    return mx.array(window.astype(np.float32))
-
-
-def _hamming(n: int) -> mx.array:
-    """
-    Hamming window.
-
-    w[k] = 0.54 - 0.46 * cos(2 * pi * k / (n - 1))
-
-    Computed in float64 for precision, then cast to float32.
-    This ensures perfect symmetry matching scipy.
-    """
-    if n <= 1:
-        return mx.ones(n, dtype=mx.float32)
-
-    k = np.arange(n, dtype=np.float64)
-    window = 0.54 - 0.46 * np.cos(2 * np.pi * k / (n - 1))
-    return mx.array(window.astype(np.float32))
-
-
-def _blackman(n: int) -> mx.array:
-    """
-    Blackman window.
-
-    w[k] = 0.42 - 0.5 * cos(2 * pi * k / (n - 1)) + 0.08 * cos(4 * pi * k / (n - 1))
-
-    Computed in float64 for precision, then cast to float32.
-    This ensures perfect symmetry and non-negative values matching scipy.
-
-    Note: The theoretical value at endpoints is exactly 0 (0.42 - 0.5 + 0.08 = 0),
-    but floating-point computation can produce tiny negative values (~1e-17).
-    We clamp to ensure non-negativity.
-    """
-    if n <= 1:
-        return mx.ones(n, dtype=mx.float32)
-
-    k = np.arange(n, dtype=np.float64)
-    window = (
-        0.42
-        - 0.5 * np.cos(2 * np.pi * k / (n - 1))
-        + 0.08 * np.cos(4 * np.pi * k / (n - 1))
-    )
-    # Clamp to non-negative (theoretical min is 0 at endpoints)
-    window = np.maximum(window, 0.0)
-    return mx.array(window.astype(np.float32))
-
-
-def _bartlett(n: int) -> mx.array:
-    """
-    Bartlett (triangular) window.
-
-    w[k] = 1 - |2 * k / (n - 1) - 1|
-
-    Computed in float64 for precision, then cast to float32.
-    This ensures perfect symmetry matching scipy.
-    """
-    if n <= 1:
-        return mx.ones(n, dtype=mx.float32)
-
-    k = np.arange(n, dtype=np.float64)
-    window = 1 - np.abs(2 * k / (n - 1) - 1)
-    return mx.array(window.astype(np.float32))

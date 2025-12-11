@@ -5,11 +5,19 @@ Provides librosa-compatible STFT and ISTFT implementations for MLX.
 """
 from __future__ import annotations
 
-from typing import Optional, Union
+from functools import lru_cache
+from typing import Any, Optional, Tuple, Union
 
+import numpy as np
 import mlx.core as mx
 
 from .windows import get_window
+
+# Numerical constants
+_WINDOW_SUM_EPSILON = 1e-8  # Minimum window sum for numerical stability
+
+# Import C++ extension with graceful fallback
+from ._extension import _ext, HAS_CPP_EXT
 
 
 def stft(
@@ -161,6 +169,12 @@ def istft(
     >>> S = stft(y, n_fft=2048, hop_length=512)
     >>> y_reconstructed = istft(S, hop_length=512)
     """
+    # Validate input dimensions
+    if stft_matrix.ndim not in (2, 3):
+        raise ValueError(
+            f"stft_matrix must be 2D or 3D, got {stft_matrix.ndim}D"
+        )
+
     # Handle batched input
     input_is_2d = stft_matrix.ndim == 2
     if input_is_2d:
@@ -309,8 +323,6 @@ def check_nola(
     >>> check_nola('hann', hop_length=512, n_fft=2048)
     True
     """
-    import numpy as np
-
     win = get_window(window, n_fft, fftbins=True)
     win_np = np.array(win)
 
@@ -335,6 +347,11 @@ def check_nola(
 
 def _pad_signal(y: mx.array, pad_length: int, mode: str) -> mx.array:
     """Pad signal on both sides."""
+    # Use C++ extension if available
+    if HAS_CPP_EXT and _ext is not None:
+        return _ext.pad_signal(y, pad_length, mode)
+
+    # Fallback to Python implementation
     if mode == "constant":
         return mx.pad(y, [(0, 0), (pad_length, pad_length)], mode="constant")
     elif mode == "edge":
@@ -382,8 +399,30 @@ def _frame_signal(y: mx.array, n_fft: int, hop_length: int) -> mx.array:
     -------
     mx.array
         Framed signal of shape (batch, n_frames, n_fft).
+
+    Raises
+    ------
+    ValueError
+        If parameters are invalid or signal is too short.
     """
+    # Use C++ extension if available
+    if HAS_CPP_EXT and _ext is not None:
+        return _ext.frame_signal(y, n_fft, hop_length)
+
+    # Fallback to Python implementation
     batch_size, signal_length = y.shape
+
+    # Validate inputs
+    if n_fft <= 0:
+        raise ValueError(f"n_fft must be positive, got {n_fft}")
+    if hop_length <= 0:
+        raise ValueError(f"hop_length must be positive, got {hop_length}")
+    if signal_length < n_fft:
+        raise ValueError(
+            f"Signal length ({signal_length}) must be >= n_fft ({n_fft}). "
+            f"Consider using center=True in stft() or padding the signal."
+        )
+
     n_frames = 1 + (signal_length - n_fft) // hop_length
 
     # Vectorized frame construction using advanced indexing
@@ -416,7 +455,7 @@ def _overlap_add(
     """
     Overlap-add reconstruction with squared window normalization.
 
-    Uses a custom Metal kernel for GPU-accelerated scatter-add.
+    Uses C++ extension when available, otherwise falls back to custom Metal kernel.
 
     Parameters
     ----------
@@ -434,6 +473,11 @@ def _overlap_add(
     mx.array
         Reconstructed signal of shape (batch, output_length).
     """
+    # Use C++ extension if available (handles windowing and normalization internally)
+    if HAS_CPP_EXT and _ext is not None:
+        return _ext.overlap_add(frames, window, hop_length, output_length)
+
+    # Fallback to Python/Metal implementation
     batch_size, n_frames, n_fft = frames.shape
 
     # Apply window to frames
@@ -448,11 +492,11 @@ def _overlap_add(
     )
 
     # Normalize by squared window sum (avoid division by zero).
-    # The threshold 1e-8 is chosen to be:
+    # _WINDOW_SUM_EPSILON (1e-8) is chosen to be:
     # - Far below any audible signal level (~1e-5 for 16-bit audio)
     # - Much smaller than the NOLA constraint tolerance (1e-10)
     # - Large enough to prevent numerical instability
-    window_sum = mx.maximum(window_sum, 1e-8)
+    window_sum = mx.maximum(window_sum, _WINDOW_SUM_EPSILON)
     output = output / window_sum
 
     return output
@@ -501,21 +545,16 @@ _SCATTER_ADD_SOURCE = """
     }
 """
 
-_scatter_add_kernel = None
-
-
-def _get_scatter_add_kernel():
-    """Lazy initialization of the scatter-add kernel."""
-    global _scatter_add_kernel
-    if _scatter_add_kernel is None:
-        _scatter_add_kernel = mx.fast.metal_kernel(
-            name="scatter_add_overlap",
-            input_names=["frames", "window_sq"],
-            output_names=["output", "window_sum"],
-            source=_SCATTER_ADD_SOURCE,
-            atomic_outputs=True,  # Enable atomic operations on outputs
-        )
-    return _scatter_add_kernel
+@lru_cache(maxsize=1)
+def _get_scatter_add_kernel() -> Any:
+    """Thread-safe lazy initialization of the scatter-add kernel."""
+    return mx.fast.metal_kernel(
+        name="scatter_add_overlap",
+        input_names=["frames", "window_sq"],
+        output_names=["output", "window_sum"],
+        source=_SCATTER_ADD_SOURCE,
+        atomic_outputs=True,  # Enable atomic operations on outputs
+    )
 
 
 def _scatter_add_overlap(
@@ -523,7 +562,7 @@ def _scatter_add_overlap(
     window_sq: mx.array,
     hop_length: int,
     output_length: int,
-) -> tuple:
+) -> Tuple[mx.array, mx.array]:
     """
     Perform scatter-add for overlap-add using custom Metal kernel.
 

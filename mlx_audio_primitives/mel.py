@@ -2,6 +2,9 @@
 Mel-scale filterbank and mel spectrogram.
 
 Provides mel filterbank construction and mel spectrogram computation.
+
+Note: hz_to_mel() and mel_to_hz() are NumPy-based utilities used internally
+for precision in filterbank construction. They accept and return np.ndarray.
 """
 from __future__ import annotations
 
@@ -12,6 +15,19 @@ import mlx.core as mx
 import numpy as np
 
 from .stft import stft, magnitude
+from ._validation import validate_positive, validate_non_negative
+
+# Import C++ extension with graceful fallback
+# noqa: F401 - reserved for future use
+from ._extension import _ext, HAS_CPP_EXT
+
+# Slaney mel scale constants (librosa default)
+# These define the piecewise-linear/log mel scale used by librosa
+_SLANEY_F_MIN = 0.0  # Minimum frequency for linear region
+_SLANEY_F_SP = 200.0 / 3  # Linear region spacing in Hz (~66.67 Hz)
+_SLANEY_MIN_LOG_HZ = 1000.0  # Boundary between linear and log regions
+_SLANEY_MIN_LOG_MEL = (_SLANEY_MIN_LOG_HZ - _SLANEY_F_MIN) / _SLANEY_F_SP
+_SLANEY_LOGSTEP = np.log(6.4) / 27.0  # Logarithmic step size
 
 
 def hz_to_mel(frequencies: np.ndarray, htk: bool = False) -> np.ndarray:
@@ -38,20 +54,14 @@ def hz_to_mel(frequencies: np.ndarray, htk: bool = False) -> np.ndarray:
     else:
         # Slaney formula (librosa default)
         # Linear below 1000 Hz, logarithmic above
-        f_min = 0.0
-        f_sp = 200.0 / 3  # Spacing in Hz for linear region
-
-        min_log_hz = 1000.0  # Boundary between linear and log
-        min_log_mel = (min_log_hz - f_min) / f_sp  # Mel at boundary
-        logstep = np.log(6.4) / 27.0  # Log step size
-
         # Use np.where with safe computation to avoid divide by zero
         # For frequencies at 0 Hz, the linear formula applies, so log isn't used
         with np.errstate(divide='ignore', invalid='ignore'):
             mels = np.where(
-                frequencies < min_log_hz,
-                (frequencies - f_min) / f_sp,
-                min_log_mel + np.log(frequencies / min_log_hz) / logstep
+                frequencies < _SLANEY_MIN_LOG_HZ,
+                (frequencies - _SLANEY_F_MIN) / _SLANEY_F_SP,
+                _SLANEY_MIN_LOG_MEL
+                + np.log(frequencies / _SLANEY_MIN_LOG_HZ) / _SLANEY_LOGSTEP
             )
         return mels
 
@@ -79,17 +89,11 @@ def mel_to_hz(mels: np.ndarray, htk: bool = False) -> np.ndarray:
         return 700.0 * (10.0 ** (mels / 2595.0) - 1.0)
     else:
         # Slaney formula (inverse)
-        f_min = 0.0
-        f_sp = 200.0 / 3
-
-        min_log_hz = 1000.0
-        min_log_mel = (min_log_hz - f_min) / f_sp
-        logstep = np.log(6.4) / 27.0
-
         freqs = np.where(
-            mels < min_log_mel,
-            f_min + f_sp * mels,
-            min_log_hz * np.exp(logstep * (mels - min_log_mel))
+            mels < _SLANEY_MIN_LOG_MEL,
+            _SLANEY_F_MIN + _SLANEY_F_SP * mels,
+            _SLANEY_MIN_LOG_HZ
+            * np.exp(_SLANEY_LOGSTEP * (mels - _SLANEY_MIN_LOG_MEL))
         )
         return freqs
 
@@ -103,13 +107,19 @@ def _compute_mel_filterbank_np(
     fmax: float,
     htk: bool,
     norm: Optional[str],
-) -> Tuple[Tuple[Tuple[float, ...], ...], Tuple[int, int]]:
+) -> Tuple[bytes, Tuple[int, int]]:
     """
     Compute mel filterbank as a cacheable tuple structure.
 
-    Returns the filterbank as nested tuples (hashable) along with shape info.
+    Returns the filterbank as bytes (hashable) along with shape info.
     This allows caching with lru_cache while still returning MLX arrays.
+
+    Note: We use pure NumPy here instead of the C++ extension because:
+    1. Mel filterbanks are computed once and cached, so startup cost is negligible
+    2. NumPy's linspace has better precision than MLX's, matching librosa exactly
+    3. The filterbank is small (~500KB) so memory copy cost is negligible
     """
+    # Pure NumPy implementation for precision (matches librosa exactly)
     # Number of frequency bins
     n_freqs = 1 + n_fft // 2
 
@@ -206,9 +216,15 @@ def mel_filterbank(
     >>> mel_fb.shape
     (128, 1025)
     """
+    # Input validation
+    validate_positive(n_mels, "n_mels")
+    validate_non_negative(fmin, "fmin")
+
     if fmax is None:
         fmax = sr / 2.0
 
+    if fmin >= fmax:
+        raise ValueError(f"fmin ({fmin}) must be less than fmax ({fmax})")
     if fmax > sr / 2.0:
         raise ValueError(
             f"fmax ({fmax}) cannot exceed Nyquist frequency ({sr / 2.0})"

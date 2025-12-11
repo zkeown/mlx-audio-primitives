@@ -5,11 +5,15 @@ import numpy as np
 import pytest
 
 
+# Use np.random.Generator for better test isolation instead of global seed
+_TEST_SEED = 42
+
+
 @pytest.fixture
 def random_signal():
     """Generate a random audio signal for testing."""
-    np.random.seed(42)
-    return np.random.randn(22050).astype(np.float32)
+    rng = np.random.default_rng(_TEST_SEED)
+    return rng.standard_normal(22050).astype(np.float32)
 
 
 @pytest.fixture
@@ -26,12 +30,12 @@ def chirp_signal():
 @pytest.fixture
 def short_signal():
     """Generate a short signal for edge case testing."""
-    np.random.seed(42)
-    return np.random.randn(1024).astype(np.float32)
+    rng = np.random.default_rng(_TEST_SEED)
+    return rng.standard_normal(1024).astype(np.float32)
 
 
 @pytest.fixture
 def batch_signals():
     """Generate a batch of random signals for testing."""
-    np.random.seed(42)
-    return np.random.randn(4, 22050).astype(np.float32)
+    rng = np.random.default_rng(_TEST_SEED)
+    return rng.standard_normal((4, 22050)).astype(np.float32)

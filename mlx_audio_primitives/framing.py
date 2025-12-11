@@ -9,6 +9,7 @@ from __future__ import annotations
 import mlx.core as mx
 import numpy as np
 
+from ._frame_impl import frame_signal_batched
 from ._validation import validate_positive
 
 
@@ -20,6 +21,11 @@ def frame(
 ) -> mx.array:
     """
     Frame an audio signal into overlapping windows.
+
+    Uses the fastest available implementation:
+    1. C++ extension (if available)
+    2. mx.as_strided (MLX >= 0.5, zero-copy)
+    3. Gather-based fallback
 
     Parameters
     ----------
@@ -62,24 +68,8 @@ def frame(
     if input_is_1d:
         y = y[None, :]  # Add batch dimension
 
-    batch_size, signal_length = y.shape
-
-    if signal_length < frame_length:
-        raise ValueError(
-            f"Signal length ({signal_length}) must be >= frame_length "
-            f"({frame_length}). Consider padding the signal."
-        )
-
-    n_frames = 1 + (signal_length - frame_length) // hop_length
-
-    # Use gather with pre-computed indices for framing
-    # This is efficient and works across all MLX versions
-    frame_starts = mx.arange(n_frames) * hop_length
-    sample_offsets = mx.arange(frame_length)
-    indices = frame_starts[:, None] + sample_offsets[None, :]
-    frames = mx.take(y, indices.flatten(), axis=1).reshape(
-        batch_size, n_frames, frame_length
-    )
+    # Use shared optimized framing implementation
+    frames = frame_signal_batched(y, frame_length, hop_length)
 
     # Remove batch dimension if input was 1D
     if input_is_1d:
@@ -195,7 +185,7 @@ def preemphasis(
     coef: float = 0.97,
     zi: mx.array | None = None,
     return_zf: bool = False,
-    use_mlx: bool = True,
+    use_mlx: bool = False,
 ) -> mx.array | tuple[mx.array, mx.array]:
     """
     Apply pre-emphasis filter to emphasize high frequencies.
@@ -214,8 +204,8 @@ def preemphasis(
         (zi = 2*y[0] - y[1]) to match librosa behavior.
     return_zf : bool, default=False
         If True, return the final filter state.
-    use_mlx : bool, default=True
-        If True, use MLX-native implementation (faster).
+    use_mlx : bool, default=False
+        If True, use MLX-native implementation (faster, slight numerical differences).
         If False, use scipy.signal.lfilter (exact librosa compatibility).
 
     Returns

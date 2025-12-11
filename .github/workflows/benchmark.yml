@@ -1,0 +1,161 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      save_baseline:
+        description: 'Save results as new baseline'
+        type: boolean
+        default: false
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: macos-14  # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CMake
+        run: brew install cmake
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[bench]" -v
+
+      - name: Verify C++ extension
+        run: |
+          python -c "from mlx_audio_primitives._extension import HAS_CPP_EXT; print(f'C++ Extension: {HAS_CPP_EXT}')"
+
+      - name: Run benchmarks
+        run: |
+          mlx-audio-bench --verbose --output json > benchmark-results.json
+          mlx-audio-bench --verbose --output markdown > benchmark-results.md
+
+      - name: Display results
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          cat benchmark-results.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            benchmark-results.json
+            benchmark-results.md
+          retention-days: 30
+
+      - name: Compare to baseline (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## Performance Comparison" >> $GITHUB_STEP_SUMMARY
+          mlx-audio-bench --compare-baseline --regression-threshold 0.15 || echo "No baseline found for comparison"
+
+      - name: Check for regressions
+        if: github.event_name == 'pull_request'
+        run: |
+          mlx-audio-bench --compare-baseline --fail-on-regression --regression-threshold 0.15 || {
+            echo "::warning::Performance regression detected! See benchmark results for details."
+            # Don't fail the job, just warn
+            exit 0
+          }
+
+      - name: Save baseline (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.save_baseline == 'true'
+        run: |
+          mlx-audio-bench --save-baseline
+          echo "Baseline saved successfully!"
+
+  scaling:
+    name: Scaling Benchmarks
+    runs-on: macos-14
+    needs: benchmark
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CMake
+        run: brew install cmake
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[bench]" -v
+
+      - name: Run scaling benchmarks
+        run: |
+          mlx-audio-bench --scaling --verbose --output json > scaling-results.json
+          mlx-audio-bench --scaling --verbose --output markdown > scaling-results.md
+
+      - name: Display scaling results
+        run: |
+          echo "## Scaling Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          cat scaling-results.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload scaling results
+        uses: actions/upload-artifact@v4
+        with:
+          name: scaling-results
+          path: |
+            scaling-results.json
+            scaling-results.md
+          retention-days: 30
+
+  cache-analysis:
+    name: Cache Impact Analysis
+    runs-on: macos-14
+    needs: benchmark
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CMake
+        run: brew install cmake
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[bench]" -v
+
+      - name: Run cache analysis
+        run: |
+          mlx-audio-bench --cache-analysis --verbose --output json > cache-results.json
+          mlx-audio-bench --cache-analysis --verbose --output markdown > cache-results.md
+
+      - name: Display cache analysis
+        run: |
+          echo "## Cache Impact Analysis" >> $GITHUB_STEP_SUMMARY
+          cat cache-results.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload cache analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-results
+          path: |
+            cache-results.json
+            cache-results.md
+          retention-days: 30

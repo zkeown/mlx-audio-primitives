@@ -14,29 +14,83 @@ import numpy as np
 
 # Import C++ extension with graceful fallback
 from ._extension import HAS_CPP_EXT, _ext
+from ._frame_impl import frame_signal_batched
 from .windows import get_window
 
 # Numerical constants
 _WINDOW_SUM_EPSILON = 1e-8
 
-# Two-tier caching for padded windows:
-# This dict stores MLX arrays directly on GPU, avoiding CPU→GPU transfer
-# on cache hits. Key: (window_name, win_length, n_fft) for string windows,
-# or (id(window), win_length, n_fft) for custom array windows.
-_padded_window_cache: dict[tuple, mx.array] = {}
+# Cache settings
+_WINDOW_CACHE_MAXSIZE = 32
+
+
+class _WindowCache:
+    """
+    LRU cache for padded windows with content-based hashing.
+
+    Uses content-based hashing for array windows (via tobytes()) rather than
+    id() for robustness. The cache is bounded to prevent memory leaks.
+    """
+
+    def __init__(self, maxsize: int = _WINDOW_CACHE_MAXSIZE):
+        self._cache: dict[tuple, mx.array] = {}
+        self._access_order: list[tuple] = []  # LRU tracking
+        self._maxsize = maxsize
+
+    def _get_window_hash(self, window: mx.array) -> int:
+        """Compute content-based hash for window array."""
+        return hash(np.array(window).tobytes())
+
+    def get(
+        self, window: str | mx.array, win_length: int, n_fft: int
+    ) -> mx.array | None:
+        """Get window from cache, returning None on miss."""
+        if isinstance(window, str):
+            cache_key = (window, win_length, n_fft)
+        else:
+            cache_key = ("array", self._get_window_hash(window), win_length, n_fft)
+
+        if cache_key in self._cache:
+            # Update LRU order
+            if cache_key in self._access_order:
+                self._access_order.remove(cache_key)
+            self._access_order.append(cache_key)
+            return self._cache[cache_key]
+        return None
+
+    def put(
+        self, window: str | mx.array, win_length: int, n_fft: int, value: mx.array
+    ) -> None:
+        """Store window in cache, evicting oldest if at capacity."""
+        if isinstance(window, str):
+            cache_key = (window, win_length, n_fft)
+        else:
+            cache_key = ("array", self._get_window_hash(window), win_length, n_fft)
+
+        # Evict oldest if at capacity
+        while len(self._cache) >= self._maxsize and self._access_order:
+            oldest = self._access_order.pop(0)
+            self._cache.pop(oldest, None)
+
+        self._cache[cache_key] = value
+        self._access_order.append(cache_key)
+
+    def clear(self) -> None:
+        """Clear the cache."""
+        self._cache.clear()
+        self._access_order.clear()
+
+
+# Global window cache instance
+_padded_window_cache = _WindowCache()
 
 
 def _get_padded_window(window: str | mx.array, win_length: int, n_fft: int) -> mx.array:
-    """Get window, padding to n_fft if needed, with caching."""
-    # Create cache key
-    if isinstance(window, str):
-        cache_key = (window, win_length, n_fft)
-    else:
-        # For array windows, use id (caller must ensure consistency)
-        cache_key = (id(window), win_length, n_fft)
-
-    if cache_key in _padded_window_cache:
-        return _padded_window_cache[cache_key]
+    """Get window, padding to n_fft if needed, with content-based caching."""
+    # Check cache first
+    cached = _padded_window_cache.get(window, win_length, n_fft)
+    if cached is not None:
+        return cached
 
     # Get base window
     win = get_window(window, win_length, fftbins=True)
@@ -48,7 +102,7 @@ def _get_padded_window(window: str | mx.array, win_length: int, n_fft: int) -> m
         win = mx.pad(win, [(pad_left, pad_right)])
 
     # Cache and return
-    _padded_window_cache[cache_key] = win
+    _padded_window_cache.put(window, win_length, n_fft, win)
     return win
 
 
@@ -418,6 +472,8 @@ def _frame_signal(y: mx.array, n_fft: int, hop_length: int) -> mx.array:
     """
     Frame signal into overlapping windows.
 
+    Uses the shared optimized framing implementation from _frame_impl.py.
+
     Parameters
     ----------
     y : mx.array
@@ -437,62 +493,7 @@ def _frame_signal(y: mx.array, n_fft: int, hop_length: int) -> mx.array:
     ValueError
         If parameters are invalid or signal is too short.
     """
-    # Use C++ extension if available
-    if HAS_CPP_EXT and _ext is not None:
-        return _ext.frame_signal(y, n_fft, hop_length)
-
-    # Fallback to Python implementation
-    batch_size, signal_length = y.shape
-
-    # Validate inputs
-    if n_fft <= 0:
-        raise ValueError(f"n_fft must be positive, got {n_fft}")
-    if hop_length <= 0:
-        raise ValueError(f"hop_length must be positive, got {hop_length}")
-    if signal_length < n_fft:
-        raise ValueError(
-            f"Signal length ({signal_length}) must be >= n_fft ({n_fft}). "
-            f"Consider using center=True in stft() or padding the signal."
-        )
-
-    n_frames = 1 + (signal_length - n_fft) // hop_length
-
-    # Optimized frame construction using as_strided view when possible,
-    # falling back to gather-based approach
-    #
-    # Key insight: We can use mx.as_strided to create a view of the signal
-    # with overlapping frames, avoiding index computation and gather operations.
-    # This is significantly faster as it's just a metadata operation.
-
-    # Check if we can use strided view (MLX >= 0.5 has as_strided)
-    if hasattr(mx, "as_strided"):
-        # Use strided view for zero-copy framing
-        # For batched signals, we need to handle each batch
-        # y shape: (batch, signal_length) -> frames: (batch, n_frames, n_fft)
-        strides = y.strides
-        # New strides: (batch_stride, hop_length, 1) in elements
-        # as_strided expects strides in elements, not bytes
-        new_shape = (batch_size, n_frames, n_fft)
-        new_strides = (strides[0], hop_length, 1)
-        frames = mx.as_strided(y, shape=new_shape, strides=new_strides)
-    else:
-        # Fallback: Use optimized gather with pre-computed indices
-        # Create frame start indices: [0, hop_length, 2*hop_length, ...]
-        frame_starts = mx.arange(n_frames) * hop_length  # (n_frames,)
-
-        # Create sample offsets within each frame: [0, 1, 2, ..., n_fft-1]
-        sample_offsets = mx.arange(n_fft)  # (n_fft,)
-
-        # Broadcast to get all indices: (n_frames, n_fft)
-        indices = frame_starts[:, None] + sample_offsets[None, :]
-
-        # Gather frames - use indices directly without extra flatten/reshape
-        # by leveraging that take gathers along axis=1 for each batch element
-        frames = mx.take(y, indices.flatten(), axis=1).reshape(
-            batch_size, n_frames, n_fft
-        )
-
-    return frames  # (batch, n_frames, n_fft)
+    return frame_signal_batched(y, n_fft, hop_length)
 
 
 def _overlap_add(

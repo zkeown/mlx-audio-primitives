@@ -19,6 +19,11 @@ slower for certain operations (overlap-add, signal framing).
 
 from typing import Any
 
+# IMPORTANT: Import mlx.core BEFORE the C++ extension to ensure nanobind
+# type casters are registered. The extension uses NB_DOMAIN mlx which requires
+# MLX's Python module to be loaded first.
+import mlx.core as _mx  # noqa: F401
+
 try:
     from . import _ext as _ext_module
 

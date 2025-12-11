@@ -10,6 +10,7 @@ from __future__ import annotations
 import mlx.core as mx
 import numpy as np
 
+from ._extension import HAS_CPP_EXT, _ext
 from ._validation import validate_positive, validate_range
 from .framing import frame
 from .stft import magnitude, stft
@@ -238,6 +239,38 @@ def spectral_bandwidth(
     return bandwidth
 
 
+def _spectral_rolloff_numpy(
+    S: mx.array,
+    freq: mx.array,
+    roll_percent: float,
+) -> mx.array:
+    """
+    NumPy fallback implementation of spectral rolloff.
+
+    Uses nested loops with np.searchsorted. Slower but exact librosa behavior.
+    """
+    # Compute cumulative energy
+    cumsum = mx.cumsum(S, axis=1)  # (batch, freq_bins, n_frames)
+    total_energy = cumsum[:, -1:, :]  # (batch, 1, n_frames)
+    threshold = roll_percent * total_energy  # (batch, 1, n_frames)
+
+    # Find the first bin that exceeds threshold
+    cumsum_np = np.array(cumsum)
+    threshold_np = np.array(threshold)
+    freq_np = np.array(freq)
+
+    batch_size, n_bins, n_frames = cumsum_np.shape
+    rolloff_np = np.zeros((batch_size, 1, n_frames), dtype=np.float32)
+
+    for b in range(batch_size):
+        for t in range(n_frames):
+            idx = np.searchsorted(cumsum_np[b, :, t], threshold_np[b, 0, t])
+            idx = min(idx, n_bins - 1)
+            rolloff_np[b, 0, t] = freq_np[idx]
+
+    return mx.array(rolloff_np)
+
+
 def spectral_rolloff(
     y: mx.array | None = None,
     sr: int = 22050,
@@ -250,6 +283,7 @@ def spectral_rolloff(
     pad_mode: str = "constant",
     freq: mx.array | None = None,
     roll_percent: float = 0.85,
+    use_cpp: bool = True,
 ) -> mx.array:
     """
     Compute spectral rolloff frequency.
@@ -281,6 +315,9 @@ def spectral_rolloff(
         Pre-computed frequency bin centers.
     roll_percent : float, default=0.85
         Fraction of energy below rolloff frequency.
+    use_cpp : bool, default=True
+        If True and C++ extension is available, use optimized C++ implementation.
+        If False, use NumPy fallback (exact librosa compatibility).
 
     Returns
     -------
@@ -308,29 +345,14 @@ def spectral_rolloff(
     if not is_batched:
         S = S[None, :]
 
-    # Compute cumulative energy
-    cumsum = mx.cumsum(S, axis=1)  # (batch, freq_bins, n_frames)
-    total_energy = cumsum[:, -1:, :]  # (batch, 1, n_frames)
-    threshold = roll_percent * total_energy  # (batch, 1, n_frames)
-
-    # Find the first bin that exceeds threshold
-    # NOTE: Uses numpy because MLX lacks searchsorted/argmax-first operations.
-    # searchsorted finds the insertion point in sorted cumsum where threshold
-    # would go, which gives us the rolloff frequency bin index.
-    cumsum_np = np.array(cumsum)
-    threshold_np = np.array(threshold)
-    freq_np = np.array(freq)
-
-    batch_size, n_bins, n_frames = cumsum_np.shape
-    rolloff_np = np.zeros((batch_size, 1, n_frames), dtype=np.float32)
-
-    for b in range(batch_size):
-        for t in range(n_frames):
-            idx = np.searchsorted(cumsum_np[b, :, t], threshold_np[b, 0, t])
-            idx = min(idx, n_bins - 1)
-            rolloff_np[b, 0, t] = freq_np[idx]
-
-    rolloff = mx.array(rolloff_np)
+    # Use C++ extension if available and requested
+    if use_cpp and HAS_CPP_EXT and _ext is not None:
+        # C++ extension expects shape (batch, freq_bins, n_frames)
+        # which is already our shape after adding batch dim if needed
+        rolloff = _ext.spectral_rolloff(S, freq, roll_percent)
+    else:
+        # Fall back to NumPy implementation
+        rolloff = _spectral_rolloff_numpy(S, freq, roll_percent)
 
     if not is_batched:
         rolloff = rolloff[0]
@@ -570,12 +592,43 @@ def spectral_contrast(
     return contrast
 
 
+def _zero_crossing_rate_mlx(frames: mx.array) -> mx.array:
+    """
+    MLX-native zero crossing rate computation.
+
+    Parameters
+    ----------
+    frames : mx.array
+        Framed signal. Shape: (batch, n_frames, frame_length)
+
+    Returns
+    -------
+    mx.array
+        Zero crossing rate. Shape: (batch, n_frames, 1)
+    """
+    # Sign of current samples: True if >= 0, False if < 0
+    sign_current = frames >= 0
+
+    # Sign of previous samples (shifted right by 1, pad with first sample's sign)
+    sign_prev = mx.concatenate([sign_current[..., :1], sign_current[..., :-1]], axis=-1)
+
+    # A crossing occurs when the sign changes
+    crossings = (sign_current != sign_prev).astype(mx.float32)
+
+    # ZCR = mean(crossings) over the frame
+    # The first element is always 0 (no crossing at start), matching librosa's pad=False
+    zcr = mx.mean(crossings, axis=-1, keepdims=True)
+
+    return zcr
+
+
 def zero_crossing_rate(
     y: mx.array,
     frame_length: int = 2048,
     hop_length: int = 512,
     center: bool = True,
     pad_mode: str = "edge",
+    use_mlx: bool = True,
 ) -> mx.array:
     """
     Compute zero crossing rate per frame.
@@ -595,6 +648,9 @@ def zero_crossing_rate(
         Center padding for framing.
     pad_mode : str, default='edge'
         Padding mode if center=True. Uses 'edge' to match librosa.
+    use_mlx : bool, default=True
+        If True, use MLX-native implementation (faster).
+        If False, use NumPy implementation (exact librosa compatibility).
 
     Returns
     -------
@@ -632,24 +688,29 @@ def zero_crossing_rate(
     # Frame the signal
     frames = frame(y, frame_length, hop_length)  # (batch, n_frames, frame_length)
 
-    # Zero crossings using signbit (matches librosa exactly)
-    # A crossing occurs when signbit differs between consecutive samples
-    y_np = np.array(frames)
+    if use_mlx:
+        # Fast MLX-native implementation
+        zcr = _zero_crossing_rate_mlx(frames)
+    else:
+        # NumPy implementation for exact librosa compatibility
+        # Zero crossings using signbit (matches librosa exactly)
+        # A crossing occurs when signbit differs between consecutive samples
+        y_np = np.array(frames)
 
-    # Compute sign changes (diff reduces length by 1)
-    sign_changes = np.abs(np.diff(np.signbit(y_np), axis=-1))
+        # Compute sign changes (diff reduces length by 1)
+        sign_changes = np.abs(np.diff(np.signbit(y_np), axis=-1))
 
-    # Pad with False at the start to match librosa's pad=False behavior
-    # This keeps the shape as (batch, n_frames, frame_length)
-    crossings = np.concatenate(
-        [np.zeros((*y_np.shape[:-1], 1), dtype=sign_changes.dtype), sign_changes],
-        axis=-1,
-    )
+        # Pad with False at the start to match librosa's pad=False behavior
+        # This keeps the shape as (batch, n_frames, frame_length)
+        crossings = np.concatenate(
+            [np.zeros((*y_np.shape[:-1], 1), dtype=sign_changes.dtype), sign_changes],
+            axis=-1,
+        )
 
-    # ZCR = mean(crossings) over the frame
-    zcr_np = np.mean(crossings, axis=-1, keepdims=True)
+        # ZCR = mean(crossings) over the frame
+        zcr_np = np.mean(crossings, axis=-1, keepdims=True)
 
-    zcr = mx.array(zcr_np.astype(np.float32))
+        zcr = mx.array(zcr_np.astype(np.float32))
 
     # Transpose to (batch, 1, n_frames) to match librosa convention
     zcr = mx.transpose(zcr, (0, 2, 1))

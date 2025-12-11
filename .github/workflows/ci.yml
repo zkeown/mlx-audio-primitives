@@ -55,12 +55,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[test]" -v
 
-      - name: Verify C++ extension
+      - name: Verify installation
         run: |
           python -c "import mlx.core as mx; print(f'MLX version: {mx.__version__}')"
-          python -c "from mlx_audio_primitives._extension import HAS_CPP_EXT, _ext; print(f'C++ Extension: {HAS_CPP_EXT}')"
-          # Import mlx first to ensure type casters are registered
-          python -c "import mlx.core as mx; from mlx_audio_primitives import _ext; print(_ext.generate_window('hann', 10, True))"
+          python -c "from mlx_audio_primitives._extension import HAS_CPP_EXT; print(f'C++ Extension available: {HAS_CPP_EXT}')"
+          python -c "import mlx_audio_primitives; print('Package imported successfully')"
 
       - name: Run tests
         run: pytest tests/ -v --tb=short

@@ -14,10 +14,6 @@ import numpy as np
 # Import C++ extension with graceful fallback
 from ._extension import HAS_CPP_EXT, _ext
 
-# =============================================================================
-# Window function implementations (private)
-# =============================================================================
-
 
 def _generalized_cosine_window(
     n: int,
@@ -61,8 +57,8 @@ def _generalized_cosine_window(
     return mx.array(window.astype(np.float32))
 
 
-# Window coefficient definitions for generalized cosine windows
-# Format: (a0, a1, a2, ...) where w[k] = a0 - a1*cos(...) + a2*cos(...) - ...
+# Generalized cosine window coefficients (a0, a1, a2, ...).
+# Reference: Harris, F.J. (1978). "On the use of windows for harmonic analysis"
 _COSINE_WINDOW_COEFFICIENTS = {
     "hann": (0.5, 0.5),
     "hamming": (0.54, 0.46),
@@ -71,21 +67,21 @@ _COSINE_WINDOW_COEFFICIENTS = {
 
 
 def _hann(n: int) -> mx.array:
-    """Hann (raised cosine) window: w[k] = 0.5 - 0.5 * cos(2*pi*k/(n-1))"""
+    """Hann window: w[k] = 0.5 - 0.5 * cos(2*pi*k/(n-1))."""
     return _generalized_cosine_window(n, _COSINE_WINDOW_COEFFICIENTS["hann"])
 
 
 def _hamming(n: int) -> mx.array:
-    """Hamming window: w[k] = 0.54 - 0.46 * cos(2*pi*k/(n-1))"""
+    """Hamming window: w[k] = 0.54 - 0.46 * cos(2*pi*k/(n-1))."""
     return _generalized_cosine_window(n, _COSINE_WINDOW_COEFFICIENTS["hamming"])
 
 
 def _blackman(n: int) -> mx.array:
     """
-    Blackman window: w[k] = 0.42 - 0.5*cos(2*pi*k/(n-1)) + 0.08*cos(4*pi*k/(n-1))
+    Blackman window.
 
-    Note: Clamped to non-negative since floating-point can produce tiny negative
-    values (~1e-17) at endpoints where theoretical value is exactly 0.
+    Clamped to non-negative since float64 can produce tiny negatives (~1e-17)
+    at endpoints where theoretical value is exactly 0.
     """
     return _generalized_cosine_window(
         n, _COSINE_WINDOW_COEFFICIENTS["blackman"], clamp_non_negative=True
@@ -124,10 +120,6 @@ _WINDOW_FUNCTIONS: dict[str, Callable[[int], mx.array]] = {
     "ones": _rectangular,  # Alias
 }
 
-
-# =============================================================================
-# Public API
-# =============================================================================
 
 # Caching Strategy:
 # Window functions use a two-tier cache:

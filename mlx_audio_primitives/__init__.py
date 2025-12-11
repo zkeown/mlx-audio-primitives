@@ -20,6 +20,50 @@ Mel-Scale Operations
 mel_filterbank : Create mel-scale filterbank matrix
 melspectrogram : Compute mel spectrogram from waveform
 
+Filterbanks
+-----------
+linear_filterbank : Create linear-scale filterbank matrix
+bark_filterbank : Create Bark-scale filterbank matrix
+hz_to_bark : Convert Hz to Bark scale
+bark_to_hz : Convert Bark scale to Hz
+
+Spectral Features
+-----------------
+spectral_centroid : Compute spectral centroid
+spectral_bandwidth : Compute spectral bandwidth
+spectral_rolloff : Compute spectral rolloff frequency
+spectral_flatness : Compute spectral flatness
+spectral_contrast : Compute spectral contrast
+zero_crossing_rate : Compute zero crossing rate
+
+MFCC
+----
+mfcc : Compute Mel-frequency cepstral coefficients
+delta : Compute delta (derivative) features
+dct : Discrete Cosine Transform (Type II)
+
+Time-Domain
+-----------
+frame : Frame signal into overlapping windows
+rms : Compute root-mean-square energy per frame
+preemphasis : Apply pre-emphasis filter
+deemphasis : Apply de-emphasis filter (inverse)
+
+Resampling
+----------
+resample : Resample audio to different sample rate
+resample_poly : Polyphase resampling for integer ratios
+
+Phase Reconstruction
+--------------------
+griffinlim : Griffin-Lim phase reconstruction
+
+Pitch/Periodicity
+-----------------
+autocorrelation : Compute autocorrelation
+pitch_detect_acf : Detect pitch using autocorrelation
+periodicity : Compute periodicity strength
+
 Decibel Conversions
 -------------------
 power_to_db : Convert power spectrogram to decibels
@@ -76,6 +120,57 @@ from .stft import (
 # Window functions
 from .windows import get_window
 
+# Filterbanks (linear and Bark scale)
+from .filterbanks import (
+    bark_filterbank,
+    bark_to_hz,
+    hz_to_bark,
+    linear_filterbank,
+)
+
+# Spectral features
+from .features import (
+    spectral_bandwidth,
+    spectral_centroid,
+    spectral_contrast,
+    spectral_flatness,
+    spectral_rolloff,
+    zero_crossing_rate,
+)
+
+# MFCC and delta
+from .mfcc import (
+    dct,
+    delta,
+    mfcc,
+)
+
+# Time-domain primitives
+from .framing import (
+    deemphasis,
+    frame,
+    preemphasis,
+    rms,
+)
+
+# Resampling
+from .resample import (
+    resample,
+    resample_poly,
+)
+
+# Phase reconstruction
+from .griffinlim import (
+    griffinlim,
+)
+
+# Pitch and periodicity
+from .pitch import (
+    autocorrelation,
+    periodicity,
+    pitch_detect_acf,
+)
+
 __all__ = [
     # Version
     "__version__",
@@ -92,6 +187,36 @@ __all__ = [
     "melspectrogram",
     "hz_to_mel",
     "mel_to_hz",
+    # Filterbanks
+    "linear_filterbank",
+    "bark_filterbank",
+    "hz_to_bark",
+    "bark_to_hz",
+    # Spectral features
+    "spectral_centroid",
+    "spectral_bandwidth",
+    "spectral_rolloff",
+    "spectral_flatness",
+    "spectral_contrast",
+    "zero_crossing_rate",
+    # MFCC
+    "mfcc",
+    "delta",
+    "dct",
+    # Time-domain
+    "frame",
+    "rms",
+    "preemphasis",
+    "deemphasis",
+    # Resampling
+    "resample",
+    "resample_poly",
+    # Phase reconstruction
+    "griffinlim",
+    # Pitch/periodicity
+    "autocorrelation",
+    "pitch_detect_acf",
+    "periodicity",
     # Conversions
     "power_to_db",
     "db_to_power",

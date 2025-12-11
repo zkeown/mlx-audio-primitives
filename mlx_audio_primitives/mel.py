@@ -18,13 +18,13 @@ import numpy as np
 from ._validation import validate_non_negative, validate_positive
 from .stft import magnitude, stft
 
-# Slaney mel scale constants (librosa default)
-# These define the piecewise-linear/log mel scale used by librosa
-_SLANEY_F_MIN = 0.0  # Minimum frequency for linear region
-_SLANEY_F_SP = 200.0 / 3  # Linear region spacing in Hz (~66.67 Hz)
-_SLANEY_MIN_LOG_HZ = 1000.0  # Boundary between linear and log regions
+# Slaney mel scale constants (librosa default).
+# Reference: Slaney, M. (1998). "Auditory Toolbox", Technical Report #1998-010
+_SLANEY_F_MIN = 0.0
+_SLANEY_F_SP = 200.0 / 3
+_SLANEY_MIN_LOG_HZ = 1000.0
 _SLANEY_MIN_LOG_MEL = (_SLANEY_MIN_LOG_HZ - _SLANEY_F_MIN) / _SLANEY_F_SP
-_SLANEY_LOGSTEP = np.log(6.4) / 27.0  # Logarithmic step size
+_SLANEY_LOGSTEP = np.log(6.4) / 27.0
 
 
 def hz_to_mel(frequencies: np.ndarray, htk: bool = False) -> np.ndarray:
@@ -49,10 +49,8 @@ def hz_to_mel(frequencies: np.ndarray, htk: bool = False) -> np.ndarray:
         # HTK formula: mel = 2595 * log10(1 + f / 700)
         return 2595.0 * np.log10(1.0 + frequencies / 700.0)
     else:
-        # Slaney formula (librosa default)
-        # Linear below 1000 Hz, logarithmic above
-        # Use np.where with safe computation to avoid divide by zero
-        # For frequencies at 0 Hz, the linear formula applies, so log isn't used
+        # Slaney formula (librosa default): linear below 1000 Hz, log above.
+        # np.where handles 0 Hz safely (linear formula applies there).
         with np.errstate(divide='ignore', invalid='ignore'):
             mels = np.where(
                 frequencies < _SLANEY_MIN_LOG_HZ,
@@ -95,7 +93,7 @@ def mel_to_hz(mels: np.ndarray, htk: bool = False) -> np.ndarray:
         return freqs
 
 
-# Secondary cache for MLX arrays (avoids CPU→GPU transfer on repeated access)
+# Secondary cache: stores MLX arrays on GPU to avoid CPU→GPU transfer.
 _mlx_filterbank_cache: dict[tuple, mx.array] = {}
 
 
@@ -115,10 +113,10 @@ def _compute_mel_filterbank_np(
     Returns the filterbank as bytes (hashable) along with shape info.
     This allows caching with lru_cache while still returning MLX arrays.
 
-    Note: We use pure NumPy here instead of the C++ extension because:
-    1. Mel filterbanks are computed once and cached, so startup cost is negligible
-    2. NumPy's linspace has better precision than MLX's, matching librosa exactly
-    3. The filterbank is small (~500KB) so memory copy cost is negligible
+    Note: We use pure NumPy instead of C++ extension because:
+    1. Filterbanks are computed once and cached (startup cost negligible)
+    2. NumPy's linspace matches librosa's precision exactly
+    3. The filterbank is small (~500KB), memory copy cost is negligible
     """
     # Pure NumPy implementation for precision (matches librosa exactly)
     # Number of frequency bins
@@ -241,9 +239,9 @@ def mel_filterbank(
         sr, n_fft, n_mels, fmin, fmax, htk, norm
     )
 
-    # Convert from bytes to MLX array and cache
-    filterbank = np.frombuffer(filterbank_bytes, dtype=np.float32).reshape(shape)
-    result = mx.array(filterbank)
+    # Convert bytes to MLX array and cache
+    fb_np = np.frombuffer(filterbank_bytes, dtype=np.float32).reshape(shape)
+    result = mx.array(fb_np)
     _mlx_filterbank_cache[cache_key] = result
     return result
 

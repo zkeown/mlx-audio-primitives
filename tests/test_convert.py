@@ -1,5 +1,13 @@
 """
-Tests for decibel conversion functions.
+Decibel conversion functions test suite.
+
+Tests cover:
+- power_to_db and db_to_power round-trip accuracy
+- amplitude_to_db and db_to_amplitude round-trip accuracy
+- Librosa compatibility for all conversion functions
+- Custom reference values (scalar and callable)
+- top_db dynamic range clipping
+- Custom amin (amplitude minimum) handling
 """
 import numpy as np
 import pytest

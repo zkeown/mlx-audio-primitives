@@ -1,5 +1,17 @@
 """
-Tests for mel filterbank and mel spectrogram.
+Mel filterbank and mel spectrogram test suite.
+
+Tests cover:
+- Hz-to-mel and mel-to-Hz conversions (Slaney and HTK formulas)
+- Mel filterbank shape, triangular structure, and non-negativity
+- Mel filterbank librosa compatibility (exact match)
+- Mel spectrogram end-to-end pipeline
+- Normalization modes ('slaney', None)
+- Custom fmin/fmax frequency ranges
+
+Cross-references:
+- Mathematical properties: test_mathematical_properties.py
+- PyTorch validation: test_torchaudio_crossval.py
 """
 import numpy as np
 import pytest

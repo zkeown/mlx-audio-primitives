@@ -1,5 +1,17 @@
 """
-Tests for STFT and ISTFT.
+STFT/ISTFT test suite.
+
+Tests cover:
+- Librosa compatibility (output shape, values within tolerance)
+- Round-trip reconstruction (STFT -> ISTFT ≈ original)
+- Edge cases (short signals, various hop lengths, center padding)
+- Batch processing (2D inputs)
+- Magnitude and phase extraction
+- NOLA constraint verification
+
+Cross-references:
+- Mathematical properties: test_mathematical_properties.py
+- PyTorch validation: test_torchaudio_crossval.py
 """
 import numpy as np
 import pytest

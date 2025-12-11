@@ -1,5 +1,13 @@
 """
-Tests for window functions.
+Window functions test suite.
+
+Tests cover:
+- Scipy compatibility for Hann, Hamming, Blackman, Bartlett windows
+- Periodic (DFT-even) vs symmetric window modes
+- Custom window array passthrough
+- Window aliases (hanning, triangular, boxcar, ones)
+- Shape and dtype validation
+- Error handling for unknown window types
 """
 import numpy as np
 import pytest

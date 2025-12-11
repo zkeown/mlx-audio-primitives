@@ -1,10 +1,31 @@
-"""CLI for running benchmarks."""
+"""
+Benchmark CLI for mlx-audio-primitives.
+
+This module provides the `mlx-audio-bench` command-line tool for comparing
+performance against librosa and torchaudio reference implementations.
+
+Usage:
+    mlx-audio-bench                    # Run all benchmarks
+    mlx-audio-bench --verbose          # Include accuracy metrics
+    mlx-audio-bench --suite stft       # Run only STFT benchmarks
+    mlx-audio-bench --suite mel        # Run only mel benchmarks
+    mlx-audio-bench --n-fft 4096       # Custom FFT size
+
+The benchmarks measure:
+    - Wall-clock execution time (ms)
+    - Speedup ratio vs reference implementations
+    - Numerical accuracy (max/mean error, correlation)
+"""
 from __future__ import annotations
 
 import argparse
 import sys
 
+from .bench_features import benchmark_all_features
+from .bench_griffinlim import benchmark_griffinlim
 from .bench_mel import benchmark_mel_filterbank, benchmark_melspectrogram
+from .bench_mfcc import benchmark_mfcc, benchmark_delta
+from .bench_resample import benchmark_resample, benchmark_resample_ratios
 from .bench_stft import benchmark_istft, benchmark_stft
 from .bench_windows import benchmark_windows
 from .utils import BenchmarkResult
@@ -91,6 +112,27 @@ def run_all(verbose: bool = False) -> list[BenchmarkResult]:
     all_results.extend(win_results)
     print(format_results(win_results, verbose))
 
+    print("\n[Spectral Features]")
+    features_results = benchmark_all_features()
+    all_results.extend(features_results)
+    print(format_results(features_results, verbose))
+
+    print("\n[MFCC]")
+    mfcc_results = benchmark_mfcc()
+    mfcc_results.extend(benchmark_delta())
+    all_results.extend(mfcc_results)
+    print(format_results(mfcc_results, verbose))
+
+    print("\n[Resampling]")
+    resample_results = benchmark_resample()
+    all_results.extend(resample_results)
+    print(format_results(resample_results, verbose))
+
+    print("\n[Griffin-Lim]")
+    griffinlim_results = benchmark_griffinlim()
+    all_results.extend(griffinlim_results)
+    print(format_results(griffinlim_results, verbose))
+
     # Summary
     print("\n[Summary]")
     speedups = [r.speedup for r in all_results if r.speedup > 0]
@@ -133,7 +175,7 @@ Examples:
     )
     parser.add_argument(
         "--suite",
-        choices=["all", "stft", "mel", "windows"],
+        choices=["all", "stft", "mel", "windows", "features", "mfcc", "resample", "griffinlim"],
         default="all",
         help="Benchmark suite to run (default: all)",
     )
@@ -166,6 +208,20 @@ Examples:
             print(format_results(results, opts.verbose))
         elif opts.suite == "windows":
             results = benchmark_windows()
+            print(format_results(results, opts.verbose))
+        elif opts.suite == "features":
+            results = benchmark_all_features(opts.signal_length)
+            print(format_results(results, opts.verbose))
+        elif opts.suite == "mfcc":
+            results = benchmark_mfcc(opts.signal_length)
+            results.extend(benchmark_delta(opts.signal_length))
+            print(format_results(results, opts.verbose))
+        elif opts.suite == "resample":
+            results = benchmark_resample(opts.signal_length)
+            results.extend(benchmark_resample_ratios(opts.signal_length))
+            print(format_results(results, opts.verbose))
+        elif opts.suite == "griffinlim":
+            results = benchmark_griffinlim(opts.signal_length, opts.n_fft)
             print(format_results(results, opts.verbose))
     except ImportError as e:
         print(f"\nError: Missing dependency - {e}")

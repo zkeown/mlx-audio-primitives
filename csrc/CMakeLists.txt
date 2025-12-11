@@ -9,6 +9,10 @@ target_sources(
     ${CMAKE_CURRENT_LIST_DIR}/primitives/pad_signal.cpp
     ${CMAKE_CURRENT_LIST_DIR}/primitives/windows.cpp
     ${CMAKE_CURRENT_LIST_DIR}/primitives/mel_filterbank.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/primitives/autocorrelation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/primitives/resample.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/primitives/dct.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/primitives/spectral.cpp
 )
 
 target_include_directories(

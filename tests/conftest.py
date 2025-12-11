@@ -39,3 +39,34 @@ def batch_signals():
     """Generate a batch of random signals for testing."""
     rng = np.random.default_rng(_TEST_SEED)
     return rng.standard_normal((4, 22050)).astype(np.float32)
+
+
+@pytest.fixture
+def sine_signal():
+    """Generate a pure sine wave for testing."""
+    sr = 22050
+    duration = 1.0
+    freq = 440  # A4 note
+    t = np.linspace(0, duration, int(sr * duration), dtype=np.float32)
+    return np.sin(2 * np.pi * freq * t).astype(np.float32)
+
+
+@pytest.fixture
+def spectrogram(random_signal):
+    """Pre-computed magnitude spectrogram."""
+    import mlx.core as mx
+    from mlx_audio_primitives import stft, magnitude
+
+    y_mx = mx.array(random_signal)
+    S = stft(y_mx, n_fft=2048, hop_length=512)
+    return np.array(magnitude(S))
+
+
+@pytest.fixture
+def mel_spec(random_signal):
+    """Pre-computed mel spectrogram."""
+    import mlx.core as mx
+    from mlx_audio_primitives import melspectrogram
+
+    y_mx = mx.array(random_signal)
+    return np.array(melspectrogram(y_mx, sr=22050, n_mels=128))

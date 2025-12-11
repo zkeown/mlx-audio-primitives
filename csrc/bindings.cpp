@@ -219,4 +219,267 @@ NB_MODULE(_ext, m) {
         mlx.core.array
             Filterbank matrix of shape (n_mels, n_fft // 2 + 1).
         )");
+
+    // Autocorrelation
+    m.def(
+        "autocorrelation",
+        &mlx_audio::autocorrelation_wrapper,
+        "signal"_a,
+        "max_lag"_a = -1,
+        "normalize"_a = true,
+        "center"_a = true,
+        "stream"_a = nb::none(),
+        R"(
+        Compute autocorrelation using FFT (Wiener-Khinchin theorem).
+
+        Parameters
+        ----------
+        signal : mlx.core.array
+            Input signal of shape (samples,) or (batch, samples).
+        max_lag : int, optional
+            Maximum lag to compute. Default: signal length.
+        normalize : bool, optional
+            If True, normalize by r[0] (variance). Default: True.
+        center : bool, optional
+            If True, subtract mean before computing. Default: True.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Autocorrelation for lags 0 to max_lag-1.
+        )");
+
+    // Resampling
+    m.def(
+        "resample_fft",
+        &mlx_audio::resample_fft_wrapper,
+        "signal"_a,
+        "num_samples"_a,
+        "stream"_a = nb::none(),
+        R"(
+        Resample signal to target number of samples using FFT.
+
+        Parameters
+        ----------
+        signal : mlx.core.array
+            Input signal of shape (samples,) or (batch, samples).
+        num_samples : int
+            Target number of samples.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Resampled signal.
+        )");
+
+    m.def(
+        "resample",
+        &mlx_audio::resample_wrapper,
+        "signal"_a,
+        "orig_sr"_a,
+        "target_sr"_a,
+        "fix"_a = true,
+        "scale"_a = false,
+        "stream"_a = nb::none(),
+        R"(
+        Resample signal from orig_sr to target_sr using FFT.
+
+        Parameters
+        ----------
+        signal : mlx.core.array
+            Input signal of shape (samples,) or (batch, samples).
+        orig_sr : int
+            Original sample rate.
+        target_sr : int
+            Target sample rate.
+        fix : bool, optional
+            If True, use round for length calculation. Default: True.
+        scale : bool, optional
+            If True, scale output by sample rate ratio. Default: False.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Resampled signal.
+        )");
+
+    // DCT
+    m.def(
+        "get_dct_matrix",
+        &mlx_audio::get_dct_matrix_wrapper,
+        "n_out"_a,
+        "n_in"_a,
+        "norm"_a = "ortho",
+        "stream"_a = nb::none(),
+        R"(
+        Get a cached DCT-II basis matrix.
+
+        Parameters
+        ----------
+        n_out : int
+            Number of output coefficients.
+        n_in : int
+            Number of input samples.
+        norm : str, optional
+            Normalization: 'ortho' or ''. Default: 'ortho'.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            DCT basis matrix of shape (n_out, n_in).
+        )");
+
+    m.def(
+        "dct",
+        &mlx_audio::dct_wrapper,
+        "x"_a,
+        "n"_a = -1,
+        "axis"_a = -1,
+        "norm"_a = "ortho",
+        "stream"_a = nb::none(),
+        R"(
+        Compute Discrete Cosine Transform (DCT-II).
+
+        Parameters
+        ----------
+        x : mlx.core.array
+            Input array.
+        n : int, optional
+            Number of output coefficients. Default: input size.
+        axis : int, optional
+            Axis along which to compute DCT. Default: -1.
+        norm : str, optional
+            Normalization: 'ortho' or ''. Default: 'ortho'.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            DCT coefficients.
+        )");
+
+    // Spectral features
+    m.def(
+        "spectral_centroid",
+        &mlx_audio::spectral_centroid_wrapper,
+        "S"_a,
+        "frequencies"_a,
+        "stream"_a = nb::none(),
+        R"(
+        Compute spectral centroid.
+
+        centroid = sum(f * S) / sum(S)
+
+        Parameters
+        ----------
+        S : mlx.core.array
+            Magnitude spectrogram of shape (freq_bins, n_frames) or
+            (batch, freq_bins, n_frames).
+        frequencies : mlx.core.array
+            Frequency values for each bin, shape (freq_bins,).
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Spectral centroid for each frame.
+        )");
+
+    m.def(
+        "spectral_bandwidth",
+        &mlx_audio::spectral_bandwidth_wrapper,
+        "S"_a,
+        "frequencies"_a,
+        "centroid"_a,
+        "p"_a = 2.0f,
+        "stream"_a = nb::none(),
+        R"(
+        Compute spectral bandwidth.
+
+        bandwidth = (sum(|f - centroid|^p * S) / sum(S))^(1/p)
+
+        Parameters
+        ----------
+        S : mlx.core.array
+            Magnitude spectrogram.
+        frequencies : mlx.core.array
+            Frequency values for each bin.
+        centroid : mlx.core.array
+            Pre-computed centroid (pass empty array to compute automatically).
+        p : float, optional
+            Power for bandwidth calculation. Default: 2.0.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Spectral bandwidth for each frame.
+        )");
+
+    m.def(
+        "spectral_rolloff",
+        &mlx_audio::spectral_rolloff_wrapper,
+        "S"_a,
+        "frequencies"_a,
+        "roll_percent"_a = 0.85f,
+        "stream"_a = nb::none(),
+        R"(
+        Compute spectral rolloff frequency.
+
+        The rolloff frequency is the frequency below which roll_percent
+        of the spectral energy is contained.
+
+        Parameters
+        ----------
+        S : mlx.core.array
+            Magnitude spectrogram.
+        frequencies : mlx.core.array
+            Frequency values for each bin.
+        roll_percent : float, optional
+            Energy threshold percentage. Default: 0.85.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Spectral rolloff for each frame.
+        )");
+
+    m.def(
+        "spectral_flatness",
+        &mlx_audio::spectral_flatness_wrapper,
+        "S"_a,
+        "amin"_a = 1e-10f,
+        "stream"_a = nb::none(),
+        R"(
+        Compute spectral flatness.
+
+        flatness = exp(mean(log(S))) / mean(S)
+
+        Parameters
+        ----------
+        S : mlx.core.array
+            Magnitude spectrogram.
+        amin : float, optional
+            Minimum amplitude for numerical stability. Default: 1e-10.
+        stream : mlx.core.Stream, optional
+            Stream for computation.
+
+        Returns
+        -------
+        mlx.core.array
+            Spectral flatness for each frame.
+        )");
 }

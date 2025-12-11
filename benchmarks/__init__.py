@@ -1,4 +1,5 @@
 """Benchmarking suite for mlx-audio-primitives."""
+from .bench_cpp_extension import benchmark_all_cpp
 from .bench_mel import (
     benchmark_mel_filterbank,
     benchmark_mel_scaling,
@@ -33,6 +34,8 @@ __all__ = [
     # Window benchmarks
     "benchmark_windows",
     "benchmark_window_caching",
+    # C++ extension benchmarks
+    "benchmark_all_cpp",
     # CLI
     "run_all",
     "main",

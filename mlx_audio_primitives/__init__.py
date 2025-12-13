@@ -88,7 +88,7 @@ try:
 
     __version__ = _get_version("mlx-audio-primitives")
 except (ImportError, PackageNotFoundError):
-    __version__ = "0.1.0"  # Fallback for editable installs
+    __version__ = "1.0.0"  # Fallback for editable installs
 
 # Import C++ extension availability flag for external use
 from ._extension import HAS_CPP_EXT as _HAS_CPP_EXT  # noqa: F401

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlx-audio-primitives"
-version = "0.1.0"
+version = "1.0.0"
 description = "Foundational audio DSP primitives for Apple's MLX framework"
 readme = "README.md"
 license = {text = "MIT"}
@@ -19,7 +19,7 @@ authors = [
 ]
 keywords = ["mlx", "audio", "dsp", "stft", "mel", "spectrogram", "apple-silicon"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
